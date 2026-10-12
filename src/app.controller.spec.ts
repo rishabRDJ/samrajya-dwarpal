@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { DataSource } from 'typeorm';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -8,7 +9,13 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [
+        AppService,
+        {
+          provide: DataSource,
+          useValue: { query: async () => [{ ok: 1 }] },
+        },
+      ],
     }).compile();
 
     appController = app.get<AppController>(AppController);
