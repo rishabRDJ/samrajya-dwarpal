@@ -1,3 +1,10 @@
 node_modules
 dist
 *.tsbuildinfo
+
+# Local environment (committed .env holds placeholder values only)
+.env
+.env.local
+
+# macOS
+.DS_Store
