@@ -1,4 +1,4 @@
-name: CI
+name: Samrajya Dwarpal
 
 on:
   pull_request:
