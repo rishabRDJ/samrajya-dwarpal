@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import type { DataSource } from 'typeorm';
+import type { MysqlDataSourceOptions } from 'typeorm/driver/mysql/MysqlDataSourceOptions.js';
 
 const ENV_KEYS = [
   'DB_HOST',
@@ -37,7 +38,7 @@ describe('data-source', () => {
 
   it('builds a mysql DataSource from env vars', async () => {
     const ds = await loadDataSource();
-    const o = ds.options as any;
+    const o = ds.options as MysqlDataSourceOptions;
     expect(o.type).toBe('mysql');
     expect(o.host).toBe('db.example.com');
     expect(o.port).toBe(3307);
@@ -49,20 +50,20 @@ describe('data-source', () => {
   it('coerces DB_PORT to a number', async () => {
     process.env.DB_PORT = '3310';
     const ds = await loadDataSource();
-    const o = ds.options as any;
+    const o = ds.options as MysqlDataSourceOptions;
     expect(o.port).toBe(3310);
     expect(typeof o.port).toBe('number');
   });
 
   it('configures SSL with rejectUnauthorized=false', async () => {
     const ds = await loadDataSource();
-    const o = ds.options as any;
+    const o = ds.options as MysqlDataSourceOptions;
     expect(o.ssl).toEqual({ rejectUnauthorized: false });
   });
 
   it('points entities and migrations at the dist build output', async () => {
     const ds = await loadDataSource();
-    const o = ds.options as any;
+    const o = ds.options as MysqlDataSourceOptions;
     expect(o.entities).toEqual(['dist/**/*.entity.js']);
     expect(o.migrations).toEqual(['dist/migrations/*.js']);
     expect(o.migrationsTableName).toBe('typeorm_migrations');
