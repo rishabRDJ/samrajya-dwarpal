@@ -23,7 +23,7 @@ jobs:
         run: npm ci
 
       - name: Lint (no auto-fix)
-        run: npx eslint "{src,test}/**/*.ts"
+        run: npm run lint:ci
 
       - name: Build
         run: npm run build
