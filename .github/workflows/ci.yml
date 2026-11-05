@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, production]   # check every PR into these branches
+  push:
+    branches: [main, production]   # also check the merge commit itself
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm                 # reuses downloaded packages between runs
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Lint (no auto-fix)
+        run: npx eslint "{src,test}/**/*.ts"
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test -- --passWithNoTests
