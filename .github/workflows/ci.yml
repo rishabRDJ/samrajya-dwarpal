@@ -2,31 +2,49 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, production]   # check every PR into these branches
+    branches: [main, production]
   push:
-    branches: [main, production]   # also check the merge commit itself
+    branches: [main, production]
+
+# If you push again while CI is still running on the same branch,
+# cancel the old run: it's checking code that's already outdated.
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  quality:
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm                 # reuses downloaded packages between runs
+          cache: npm
+      - run: npm ci
+      - run: npm run lint:ci
 
-      - name: Install exact dependencies
-        run: npm ci
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test -- --passWithNoTests
 
-      - name: Lint (no auto-fix)
-        run: npm run lint:ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Unit tests
-        run: npm test -- --passWithNoTests
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
