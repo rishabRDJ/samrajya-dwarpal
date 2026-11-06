@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { UsersModule } from './users/users.module.js';
 
 @Module({
   imports: [
@@ -19,8 +20,11 @@ import { AppService } from './app.service.js';
         ssl: {
           rejectUnauthorized: false,
         },
+        autoLoadEntities: true,
+        synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
       }),
     }),
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
