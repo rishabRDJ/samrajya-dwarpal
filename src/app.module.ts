@@ -19,6 +19,8 @@ import { AppService } from './app.service.js';
         ssl: {
           rejectUnauthorized: false,
         },
+        autoLoadEntities: true,
+        synchronize: false,
       }),
     }),
   ],
