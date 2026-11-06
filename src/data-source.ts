@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
 
-config();
+config({ quiet: true });
 
 export default new DataSource({
   type: 'mysql',
