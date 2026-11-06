@@ -21,7 +21,7 @@ import { UsersModule } from './users/users.module.js';
           rejectUnauthorized: false,
         },
         autoLoadEntities: true,
-        synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
+        synchronize: false,
       }),
     }),
     UsersModule,

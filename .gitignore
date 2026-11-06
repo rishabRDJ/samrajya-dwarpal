@@ -1,5 +1,6 @@
 node_modules
 dist
+coverage
 *.tsbuildinfo
 
 # Local environment (committed .env holds placeholder values only)
