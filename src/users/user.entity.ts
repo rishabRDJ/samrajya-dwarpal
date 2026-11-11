@@ -10,15 +10,16 @@ import {
 @Entity({ name: 'users' })
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  @Index()
   id: string;
 
-  @Index()
-  @Column({ type: 'varchar', length: 64, unique: true })
+  @Index('UQ_users_username', { unique: true })
+  @Column({ type: 'varchar', length: 64 })
   username: string;
 
-  @Column({ type: 'varchar', length: 255 })
-  password: string;
+  // Never store plaintext. select: false keeps the hash out of normal queries;
+  // load it explicitly at login with .addSelect('user.passwordHash').
+  @Column({ type: 'varchar', length: 255, select: false })
+  passwordHash: string;
 
   @Column({ type: 'varchar', length: 100 })
   firstName: string;
@@ -26,12 +27,12 @@ export class User {
   @Column({ type: 'varchar', length: 100 })
   lastName: string;
 
-  @Index()
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Index('UQ_users_emailAddress', { unique: true })
+  @Column({ type: 'varchar', length: 255 })
   emailAddress: string;
 
-  @Index()
-  @Column({ type: 'varchar', length: 20, unique: true })
+  @Index('UQ_users_phoneNumber', { unique: true })
+  @Column({ type: 'varchar', length: 20 })
   phoneNumber: string;
 
   @Column({ type: 'timestamp', nullable: true })
