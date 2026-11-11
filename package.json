@@ -25,7 +25,8 @@
     "migration:create": "npm run typeorm -- migration:create src/migrations/Migration",
     "migration:up": "npm run build && npm run typeorm -- migration:run -d dist/data-source.js",
     "migration:down": "npm run build && npm run typeorm -- migration:revert -d dist/data-source.js",
-    "migration:show": "npm run build && npm run typeorm -- migration:show -d dist/data-source.js"
+    "migration:show": "npm run build && npm run typeorm -- migration:show -d dist/data-source.js",
+    "migration:deploy": "npm run typeorm -- migration:run -d dist/data-source.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
