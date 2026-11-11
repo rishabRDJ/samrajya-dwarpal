@@ -23,7 +23,7 @@
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./jest-e2e.config.ts",
     "typeorm": "node ./node_modules/typeorm/cli.js",
     "migration:create": "npm run typeorm -- migration:create src/migrations/Migration",
-    "migration:up": "npm run build && npm run typeorm -- migration:run -d dist/data-source.js",
+    "migration:up": "npm run build && node dist/scripts/migrate.js",
     "migration:down": "npm run build && npm run typeorm -- migration:revert -d dist/data-source.js",
     "migration:show": "npm run build && npm run typeorm -- migration:show -d dist/data-source.js",
     "migration:deploy": "npm run typeorm -- migration:run -d dist/data-source.js"
