@@ -19,7 +19,10 @@ export class RefreshToken {
   userId: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
-  @JoinColumn({ name: 'userId' })
+  @JoinColumn({
+    name: 'userId',
+    foreignKeyConstraintName: 'FK_refresh_tokens_userId',
+  })
   user: User;
 
   // sha256 hex digest of the raw refresh token. The raw token is never stored.
