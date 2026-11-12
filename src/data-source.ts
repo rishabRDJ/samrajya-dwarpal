@@ -14,6 +14,7 @@ export default new DataSource({
   ssl: {
     rejectUnauthorized: false,
   },
+  timezone: 'Z',
   entities: ['dist/**/*.entity.js'],
   migrations: ['dist/migrations/*.js'],
   migrationsTableName: 'typeorm_migrations',

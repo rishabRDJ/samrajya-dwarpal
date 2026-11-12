@@ -27,13 +27,13 @@ export class RefreshToken {
   @Column({ type: 'char', length: 64 })
   tokenHash: string;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'datetime', precision: 6 })
   expiresAt: Date;
 
-  @CreateDateColumn({ type: 'datetime' })
+  @CreateDateColumn({ type: 'datetime', precision: 6 })
   createdAt: Date;
 
   // null = active; set when the token is rotated, logged out, or compromised.
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'datetime', precision: 6, nullable: true })
   revokedAt: Date | null;
 }
