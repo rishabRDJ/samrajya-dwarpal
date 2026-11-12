@@ -7,6 +7,11 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+export enum UserRole {
+  ADMIN = 'admin',
+  USER = 'user',
+}
+
 @Entity({ name: 'users' })
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -34,6 +39,9 @@ export class User {
   @Index('UQ_users_phoneNumber', { unique: true })
   @Column({ type: 'varchar', length: 20 })
   phoneNumber: string;
+
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
+  role: UserRole;
 
   @Column({ type: 'timestamp', nullable: true })
   lastLoginAt: Date | null;
