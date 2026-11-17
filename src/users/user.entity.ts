@@ -1,8 +1,11 @@
 import {
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -21,8 +24,6 @@ export class User {
   @Column({ type: 'varchar', length: 64 })
   username: string;
 
-  // Never store plaintext. select: false keeps the hash out of normal queries;
-  // load it explicitly at login with .addSelect('user.passwordHash').
   @Column({ type: 'varchar', length: 255, select: false })
   passwordHash: string;
 
@@ -37,7 +38,7 @@ export class User {
   emailAddress: string;
 
   @Index('UQ_users_phoneNumber', { unique: true })
-  @Column({ type: 'varchar', length: 20 })
+  @Column({ type: 'varchar', length: 20, nullable: true })
   phoneNumber: string;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
@@ -51,4 +52,20 @@ export class User {
 
   @UpdateDateColumn({ type: 'datetime', precision: 6 })
   updatedAt: Date;
+
+  @Column({ type: 'datetime', precision: 6, nullable: true })
+  emailVerifiedAt: Date | null;
+
+  @DeleteDateColumn({ type: 'datetime', precision: 6, nullable: true })
+  deletedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  lastUpdatedBy: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({
+    name: 'lastUpdatedBy',
+    foreignKeyConstraintName: 'FK_users_lastUpdatedBy',
+  })
+  lastUpdatedByUser: User | null;
 }
