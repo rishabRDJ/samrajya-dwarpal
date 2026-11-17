@@ -36,9 +36,6 @@ export class UpdateUsersLifecycleColumns1794922120453 implements MigrationInterf
       `ALTER TABLE \`users\` DROP FOREIGN KEY \`FK_users_lastUpdatedBy\``,
     );
     await queryRunner.query(
-      `ALTER TABLE \`users\` DROP FOREIGN KEY \`FK_users_lastUpdatedBy\``,
-    );
-    await queryRunner.query(
       `ALTER TABLE \`users\` CHANGE \`phoneNumber\` \`phoneNumber\` varchar(20) NOT NULL`,
     );
     await queryRunner.query(
