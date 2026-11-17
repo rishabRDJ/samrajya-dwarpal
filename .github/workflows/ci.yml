@@ -48,3 +48,41 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0 # match Aiven's MySQL version
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: samrajya_ci
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: samrajya_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Enforce Aiven's primary-key rule
+        run: mysql -h127.0.0.1 -uroot -proot -e "SET PERSIST sql_require_primary_key = ON;"
+      - run: npm run build
+      - name: Apply all migrations to an empty database
+        run: node dist/scripts/migrate.js
+      - name: Entities and migrations are in sync
+        run: npm run typeorm -- migration:generate src/migrations/DriftCheck --check -d dist/data-source.js
+      - name: Last migration reverts cleanly
+        run: npm run typeorm -- migration:revert -d dist/data-source.js
+      - name: Re-apply after revert
+        run: node dist/scripts/migrate.js
