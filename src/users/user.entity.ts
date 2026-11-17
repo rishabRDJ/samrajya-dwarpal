@@ -39,7 +39,7 @@ export class User {
 
   @Index('UQ_users_phoneNumber', { unique: true })
   @Column({ type: 'varchar', length: 20, nullable: true })
-  phoneNumber: string;
+  phoneNumber: string | null;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
