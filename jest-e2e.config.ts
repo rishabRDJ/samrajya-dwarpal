@@ -24,6 +24,9 @@ const config: Config = {
   transform: {
     '^.+\\.ts$': ['ts-jest', { useESM: true }],
   },
+  // Runs before each e2e test file; registers the @nestjs/throttler mock so
+  // controller imports don't trip Node's ESM require-cycle check.
+  setupFiles: ['<rootDir>/test/jest-e2e.setup.ts'],
   collectCoverageFrom: coverageFrom,
   coverageDirectory: 'coverage/e2e',
   coverageReporters: ['json', 'text', 'lcov'],

@@ -1,52 +1,21 @@
-import 'reflect-metadata';
-import { jest } from '@jest/globals';
 import type { INestApplication } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import type { RefreshToken } from '../src/auth/refresh-token.entity.js';
 import type { User } from '../src/users/user.entity.js';
 
-jest.unstable_mockModule('@nestjs/throttler', () => ({
-  __esModule: true,
-  Throttle: () => () => undefined,
-  ThrottlerModule: { forRoot: () => ({ module: class {}, providers: [] }) },
-  ThrottlerGuard: class {
-    canActivate(): boolean {
-      return true;
-    }
-  },
-}));
-
-// Dynamic imports so the mock above is registered first. Everything that
-// transitively touches @nestjs/throttler (AuthController → @Throttle) must
-// be imported AFTER the mock, not at the file's top-level static imports.
-const [
-  { ValidationPipe },
-  { Test },
-  { getRepositoryToken },
-  argon2Pkg,
-  supertestPkg,
-  typeormPkg,
-  refreshEntityMod,
-  userEntityMod,
-  testModuleMod,
-] = await Promise.all([
-  import('@nestjs/common'),
-  import('@nestjs/testing'),
-  import('@nestjs/typeorm'),
-  import('argon2'),
-  import('supertest'),
-  import('typeorm'),
-  import('../src/auth/refresh-token.entity.js'),
-  import('../src/users/user.entity.js'),
-  import('./test-app.module.js'),
-]);
-
-const argon2 = argon2Pkg;
-const request = (supertestPkg as any).default ?? supertestPkg;
-const { IsNull } = typeormPkg;
-const { RefreshToken: RefreshTokenEntity } = refreshEntityMod;
-const { User: UserEntity, UserRole } = userEntityMod;
-const { TestAppModule } = testModuleMod;
+// Runtime bindings assigned in beforeAll, after the setup file's throttler
+// mock is already in place. No top-level await — more portable across Node
+// versions and CI environments.
+let Test: typeof import('@nestjs/testing').Test;
+let ValidationPipe: typeof import('@nestjs/common').ValidationPipe;
+let getRepositoryToken: typeof import('@nestjs/typeorm').getRepositoryToken;
+let argon2: typeof import('argon2');
+let request: any;
+let IsNull: typeof import('typeorm').IsNull;
+let RefreshTokenEntity: typeof import('../src/auth/refresh-token.entity.js').RefreshToken;
+let UserEntity: typeof import('../src/users/user.entity.js').User;
+let UserRole: typeof import('../src/users/user.entity.js').UserRole;
+let TestAppModule: typeof import('./test-app.module.js').TestAppModule;
 
 const EMAIL = 'e2e-auth@test.local';
 const USERNAME = 'e2e_auth_user';
@@ -87,6 +56,18 @@ describe('Auth (e2e)', () => {
   }
 
   beforeAll(async () => {
+    const commonMod = await import('@nestjs/common');
+    ValidationPipe = commonMod.ValidationPipe;
+    ({ Test } = await import('@nestjs/testing'));
+    ({ getRepositoryToken } = await import('@nestjs/typeorm'));
+    argon2 = await import('argon2');
+    const supertestMod = await import('supertest');
+    request = (supertestMod as any).default ?? supertestMod;
+    ({ IsNull } = await import('typeorm'));
+    ({ RefreshToken: RefreshTokenEntity } = await import('../src/auth/refresh-token.entity.js'));
+    ({ User: UserEntity, UserRole } = await import('../src/users/user.entity.js'));
+    ({ TestAppModule } = await import('./test-app.module.js'));
+
     const moduleRef = await Test.createTestingModule({
       imports: [TestAppModule],
     }).compile();

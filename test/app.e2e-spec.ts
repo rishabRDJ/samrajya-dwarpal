@@ -1,30 +1,22 @@
-import { jest } from '@jest/globals';
 import type { INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
 import type { App } from 'supertest/types.js';
 
-jest.unstable_mockModule('@nestjs/throttler', () => ({
-  __esModule: true,
-  Throttle: () => () => undefined,
-  ThrottlerModule: { forRoot: () => ({ module: class {}, providers: [] }) },
-  ThrottlerGuard: class {
-    canActivate(): boolean {
-      return true;
-    }
-  },
-}));
-
-const [{ Test }, supertestPkg, testModuleMod] = await Promise.all([
-  import('@nestjs/testing'),
-  import('supertest'),
-  import('./test-app.module.js'),
-]);
-
-const request = (supertestPkg as any).default ?? supertestPkg;
-const { TestAppModule } = testModuleMod;
+// Runtime values are loaded lazily inside beforeAll so the throttler mock
+// from jest-e2e.setup.ts is applied before anything resolves @nestjs/throttler.
+let Test: typeof import('@nestjs/testing').Test;
+let request: any;
+let TestAppModule: typeof import('./test-app.module.js').TestAppModule;
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
+
+  beforeAll(async () => {
+    ({ Test } = await import('@nestjs/testing'));
+    const supertestMod = await import('supertest');
+    request = (supertestMod as any).default ?? supertestMod;
+    ({ TestAppModule } = await import('./test-app.module.js'));
+  });
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
