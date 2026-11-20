@@ -1,24 +1,39 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
-import { App } from 'supertest/types.js';
-import { AppModule } from './../src/app.module.js';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { INestApplication } from '@nestjs/common';
+import type { TestingModule } from '@nestjs/testing';
+import type { App } from 'supertest/types.js';
+
+// Runtime values are loaded lazily inside beforeAll so the throttler mock
+// from jest-e2e.setup.ts is applied before anything resolves @nestjs/throttler.
+let Test: typeof import('@nestjs/testing').Test;
+let request: any;
+let TestAppModule: typeof import('./test-app.module.js').TestAppModule;
+let setupApp: typeof import('../src/app.setup.js').setupApp;
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
+  beforeAll(async () => {
+    ({ Test } = await import('@nestjs/testing'));
+    const supertestMod = await import('supertest');
+    request = (supertestMod as any).default ?? supertestMod;
+    ({ TestAppModule } = await import('./test-app.module.js'));
+    ({ setupApp } = await import('../src/app.setup.js'));
+  });
+
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+      imports: [TestAppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    setupApp(app);
     await app.init();
   });
 
-  it('/ (GET)', () => {
+  it('/v1 (GET)', () => {
     return request(app.getHttpServer())
-      .get('/')
+      .get('/v1')
       .expect(200)
       .expect('Hello World!');
   });
