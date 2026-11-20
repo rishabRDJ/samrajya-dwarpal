@@ -79,6 +79,77 @@ describe('TokenService', () => {
     expect(payload.exp - payload.iat).toBe(900);
   });
 
+  describe('rotate', () => {
+    const user = { id: 'u1', role: UserRole.USER };
+
+    it('throws 401 when the token hash is unknown', async () => {
+      const repo = moduleRef.get(getRepositoryToken(RefreshToken)) as any;
+      repo.findOne = jest.fn(async () => null) as any;
+      await expect(
+        service.rotate('some-raw-token', async () => user),
+      ).rejects.toThrow('Unauthorized');
+    });
+
+    it('nukes every active session when a revoked token is replayed (reuse)', async () => {
+      const repo = moduleRef.get(getRepositoryToken(RefreshToken)) as any;
+      repo.findOne = jest.fn(async () => ({
+        id: 'r1',
+        userId: 'u1',
+        tokenHash: 'h',
+        expiresAt: new Date(Date.now() + 86_400_000),
+        revokedAt: new Date(),
+      })) as any;
+      repo.update = jest.fn(async () => ({ affected: 1 })) as any;
+
+      await expect(
+        service.rotate('raw', async () => user),
+      ).rejects.toThrow('Unauthorized');
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { userId: 'u1', revokedAt: expect.anything() },
+        { revokedAt: expect.any(Date) },
+      );
+    });
+
+    it('throws 401 when the token is expired', async () => {
+      const repo = moduleRef.get(getRepositoryToken(RefreshToken)) as any;
+      repo.findOne = jest.fn(async () => ({
+        id: 'r1',
+        userId: 'u1',
+        tokenHash: 'h',
+        expiresAt: new Date(Date.now() - 1_000),
+        revokedAt: null,
+      })) as any;
+      await expect(
+        service.rotate('raw', async () => user),
+      ).rejects.toThrow('Unauthorized');
+    });
+
+    it('throws 401 when the user has since been deleted', async () => {
+      const repo = moduleRef.get(getRepositoryToken(RefreshToken)) as any;
+      repo.findOne = jest.fn(async () => ({
+        id: 'r1',
+        userId: 'u1',
+        tokenHash: 'h',
+        expiresAt: new Date(Date.now() + 86_400_000),
+        revokedAt: null,
+      })) as any;
+      await expect(service.rotate('raw', async () => null)).rejects.toThrow('Unauthorized');
+    });
+  });
+
+  describe('revoke', () => {
+    it('updates revokedAt for active tokens with the given hash', async () => {
+      const repo = moduleRef.get(getRepositoryToken(RefreshToken)) as any;
+      repo.update = jest.fn(async () => ({ affected: 1 })) as any;
+      await service.revoke('some-raw-token');
+      const [criteria, patch] = repo.update.mock.calls[0];
+      expect(criteria.tokenHash).toBeDefined();
+      expect(criteria.revokedAt).toBeDefined();
+      expect(patch.revokedAt).toBeInstanceOf(Date);
+    });
+  });
+
   it('stores a refresh token only as a sha256 hash, never as the raw value', async () => {
     const user = { id: 'user-123', role: UserRole.USER };
 
