@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { INestApplication } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import type { RefreshToken } from '../src/auth/refresh-token.entity.js';

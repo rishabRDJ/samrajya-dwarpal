@@ -26,7 +26,8 @@ describe('validateEnv', () => {
   });
 
   it('rejects a missing DB_HOST', () => {
-    const { DB_HOST: _dropped, ...without } = base;
+    const without: Record<string, string> = { ...base };
+    delete without.DB_HOST;
     expect(() => validateEnv(without)).toThrow(/DB_HOST/);
   });
 });

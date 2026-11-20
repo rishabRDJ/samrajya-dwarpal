@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import 'reflect-metadata';
 import { createHash } from 'node:crypto';
 import { jest } from '@jest/globals';

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import 'reflect-metadata';
 import { jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
