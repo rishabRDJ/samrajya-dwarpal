@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
@@ -12,6 +13,10 @@ import { UsersModule } from './users/users.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Baseline throttle: 20 requests / minute per IP. Routes can lower the
+    // limit with @Throttle() (login does: 5/min). The guard reads these and
+    // the @Throttle overrides.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 20 }]),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -45,6 +50,9 @@ import { UsersModule } from './users/users.module.js';
     // RolesGuard runs after JwtAuthGuard. On routes without @Roles() it is a
     // no-op, so registering it globally costs nothing per request.
     { provide: APP_GUARD, useClass: RolesGuard },
+    // ThrottlerGuard enforces the ThrottlerModule config plus any @Throttle()
+    // overrides. Runs after auth guards so unauthenticated hits still count.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}
