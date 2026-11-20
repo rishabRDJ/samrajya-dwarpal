@@ -1,8 +1,34 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 import { User, UserRole } from './user.entity.js';
+
+// Plain structural input so UsersService does not depend on auth/dto. The
+// controller maps RegisterDto → this before calling.
+export interface RegisterInput {
+  username: string;
+  emailAddress: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+  phoneNumber?: string;
+}
+
+export interface AvailabilityInput {
+  username?: string;
+  emailAddress?: string;
+}
+
+// MySQL's duplicate-key error code. TypeORM surfaces the underlying driver
+// error on QueryFailedError.driverError.code.
+const MYSQL_DUP_ENTRY = 'ER_DUP_ENTRY';
+function isDuplicateKey(err: unknown): err is QueryFailedError {
+  return (
+    err instanceof QueryFailedError &&
+    (err as QueryFailedError & { driverError?: { code?: string } }).driverError?.code === MYSQL_DUP_ENTRY
+  );
+}
 
 // Minimal shape an auth flow needs. Keeping it narrow prevents callers from
 // leaking passwordHash further than login needs it.
@@ -63,5 +89,38 @@ export class UsersService {
 
   async markLoggedIn(id: string): Promise<void> {
     await this.users.update({ id }, { lastLoginAt: new Date() });
+  }
+
+  async register(input: RegisterInput): Promise<User> {
+    const passwordHash = await argon2.hash(input.password);
+    const user = this.users.create({
+      username: input.username,
+      emailAddress: input.emailAddress,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phoneNumber: input.phoneNumber ?? null,
+      passwordHash,
+      role: UserRole.USER,
+    });
+    try {
+      return await this.users.save(user);
+    } catch (err) {
+      // Generic message: do not reveal which field clashed. Clients that need
+      // that detail should use GET /auth/availability first, which is the
+      // explicit (rate-limited) enumeration surface.
+      if (isDuplicateKey(err)) {
+        throw new ConflictException('username or email address already in use');
+      }
+      throw err;
+    }
+  }
+
+  // Soft-deleted identifiers stay reserved (spec), so withDeleted: true.
+  async isAvailable(input: AvailabilityInput): Promise<boolean> {
+    const where = input.username
+      ? { username: input.username }
+      : { emailAddress: input.emailAddress };
+    const existing = await this.users.findOne({ where, withDeleted: true });
+    return existing === null;
   }
 }
