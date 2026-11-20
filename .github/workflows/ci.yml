@@ -26,8 +26,29 @@ jobs:
       - run: npm run lint:ci
 
   test:
-    name: Unit tests
+    name: Tests (unit + e2e + merged coverage)
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0 # match Aiven's MySQL version
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: samrajya_ci
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: samrajya_ci
+      # Deterministic non-secret values for CI. Not real secrets; prod uses
+      # Render env groups. The length satisfies env.validation's 32-char floor.
+      JWT_ACCESS_SECRET: ci-only-jwt-secret-ci-only-jwt-secret-ci-only
+      JWT_ACCESS_EXPIRES_IN: 15m
+      REFRESH_TOKEN_TTL_DAYS: 7
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,7 +56,19 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm test -- --passWithNoTests
+      - name: Enforce Aiven's primary-key rule
+        run: mysql -h127.0.0.1 -uroot -proot -e "SET PERSIST sql_require_primary_key = ON;"
+      - run: npm run build
+      - name: Apply migrations
+        run: node dist/scripts/migrate.js
+      - name: Full test suite with merged coverage
+        run: npm run test:coverage:all
+      - name: Upload merged coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/merged
 
   build:
     name: Build
