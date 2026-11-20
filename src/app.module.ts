@@ -23,6 +23,10 @@ import { UsersModule } from './users/users.module.js';
         ssl: {
           rejectUnauthorized: false,
         },
+        // Read and write DATETIME values as UTC. MySQL stores DATETIME without
+        // a zone, so mysql2 picks one when serializing JS Date values; without
+        // this, it uses the app server's local zone. 'Z' = UTC.
+        timezone: 'Z',
         autoLoadEntities: true,
         synchronize: false,
       }),
