@@ -6,6 +6,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
+import { RolesGuard } from './auth/guards/roles.guard.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -41,6 +42,9 @@ import { UsersModule } from './users/users.module.js';
     // opt out with @Public(). APP_GUARD lets the guard participate in DI
     // (so it can inject Reflector) unlike app.useGlobalGuards().
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // RolesGuard runs after JwtAuthGuard. On routes without @Roles() it is a
+    // no-op, so registering it globally costs nothing per request.
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
