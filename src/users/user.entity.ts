@@ -1,4 +1,6 @@
 import {
+  BeforeInsert,
+  BeforeUpdate,
   Column,
   CreateDateColumn,
   DeleteDateColumn,
@@ -68,4 +70,15 @@ export class User {
     foreignKeyConstraintName: 'FK_users_lastUpdatedBy',
   })
   lastUpdatedByUser: User | null;
+
+  // Canonicalize identifiers before any entity-based INSERT or UPDATE. This
+  // runs on repository.save() with either a new entity or a loaded one. It
+  // does NOT run on repository.update(partial) — that goes straight to SQL.
+  // Normalizing both here and via a DTO @Transform gives defense in depth.
+  @BeforeInsert()
+  @BeforeUpdate()
+  normalizeIdentifiers(): void {
+    if (this.username) this.username = this.username.toLowerCase();
+    if (this.emailAddress) this.emailAddress = this.emailAddress.toLowerCase();
+  }
 }
