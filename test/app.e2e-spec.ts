@@ -8,6 +8,7 @@ import type { App } from 'supertest/types.js';
 let Test: typeof import('@nestjs/testing').Test;
 let request: any;
 let TestAppModule: typeof import('./test-app.module.js').TestAppModule;
+let setupApp: typeof import('../src/app.setup.js').setupApp;
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -17,6 +18,7 @@ describe('AppController (e2e)', () => {
     const supertestMod = await import('supertest');
     request = (supertestMod as any).default ?? supertestMod;
     ({ TestAppModule } = await import('./test-app.module.js'));
+    ({ setupApp } = await import('../src/app.setup.js'));
   });
 
   beforeEach(async () => {
@@ -25,7 +27,7 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('v1', { exclude: ['health'] });
+    setupApp(app);
     await app.init();
   });
 

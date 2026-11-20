@@ -26,7 +26,7 @@ jobs:
       - run: npm run lint:ci
 
   test:
-    name: Tests (unit + e2e + merged coverage)
+    name: Tests
     runs-on: ubuntu-latest
     services:
       mysql:

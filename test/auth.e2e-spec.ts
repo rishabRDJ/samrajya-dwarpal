@@ -8,7 +8,6 @@ import type { User } from '../src/users/user.entity.js';
 // mock is already in place. No top-level await — more portable across Node
 // versions and CI environments.
 let Test: typeof import('@nestjs/testing').Test;
-let ValidationPipe: typeof import('@nestjs/common').ValidationPipe;
 let getRepositoryToken: typeof import('@nestjs/typeorm').getRepositoryToken;
 let argon2: typeof import('argon2');
 let request: any;
@@ -17,6 +16,7 @@ let RefreshTokenEntity: typeof import('../src/auth/refresh-token.entity.js').Ref
 let UserEntity: typeof import('../src/users/user.entity.js').User;
 let UserRole: typeof import('../src/users/user.entity.js').UserRole;
 let TestAppModule: typeof import('./test-app.module.js').TestAppModule;
+let setupApp: typeof import('../src/app.setup.js').setupApp;
 
 const EMAIL = 'e2e-auth@test.local';
 const USERNAME = 'e2e_auth_user';
@@ -57,8 +57,6 @@ describe('Auth (e2e)', () => {
   }
 
   beforeAll(async () => {
-    const commonMod = await import('@nestjs/common');
-    ValidationPipe = commonMod.ValidationPipe;
     ({ Test } = await import('@nestjs/testing'));
     ({ getRepositoryToken } = await import('@nestjs/typeorm'));
     argon2 = await import('argon2');
@@ -68,20 +66,14 @@ describe('Auth (e2e)', () => {
     ({ RefreshToken: RefreshTokenEntity } = await import('../src/auth/refresh-token.entity.js'));
     ({ User: UserEntity, UserRole } = await import('../src/users/user.entity.js'));
     ({ TestAppModule } = await import('./test-app.module.js'));
+    ({ setupApp } = await import('../src/app.setup.js'));
 
     const moduleRef = await Test.createTestingModule({
       imports: [TestAppModule],
     }).compile();
 
     app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('v1', { exclude: ['health'] });
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
+    setupApp(app);
     await app.init();
 
     usersRepo = moduleRef.get(getRepositoryToken(UserEntity));
