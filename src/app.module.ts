@@ -8,11 +8,12 @@ import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from './auth/guards/roles.guard.js';
+import { validateEnv } from './env.validation.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     // Baseline throttle: 20 requests / minute per IP. Routes can lower the
     // limit with @Throttle() (login does: 5/min). The guard reads these and
     // the @Throttle overrides.
