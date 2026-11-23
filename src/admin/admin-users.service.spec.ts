@@ -57,8 +57,12 @@ describe('AdminUsersService', () => {
       select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
       getOne: jest.fn(),
-      getMany: jest.fn(),
+      // Default: the admin set is non-empty so promotions and no-ops
+      // succeed without needing per-test setup. Last-admin / demotion
+      // tests override this via mockResolvedValueOnce.
+      getMany: jest.fn(async () => [{ id: 'other-admin' }, { id: 'admin-1' }]),
     };
 
     txRepo = {
@@ -176,7 +180,7 @@ describe('AdminUsersService', () => {
       expect(tokens.revokeAllForUser).not.toHaveBeenCalled();
     });
 
-    it('promotes a USER to ADMIN without touching the last-admin check or revoking tokens', async () => {
+    it('promotes a USER to ADMIN: admin set is still locked (consistent order) but no count check runs, and no tokens are revoked', async () => {
       // 1st getOne = loadForWrite before the check.
       // 2nd getOne = loadForWrite after the update (returns the fresh row).
       lockQb.getOne
@@ -189,9 +193,45 @@ describe('AdminUsersService', () => {
         { id: 'u2' },
         { role: UserRole.ADMIN, lastUpdatedBy: 'admin-1' },
       );
-      // Not a demotion: never query the admin set, never revoke.
-      expect(lockQb.getMany).not.toHaveBeenCalled();
+      // Admin set IS locked up front (lock-order invariant), but target
+      // is not an admin so the count is never asserted against.
+      expect(lockQb.getMany).toHaveBeenCalled();
+      // Not a demotion: no refresh revoke.
       expect(tokens.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
+    it('locks the admin set BEFORE the target row (consistent lock order defeats cross-demotion deadlock)', async () => {
+      // Record the observed call order across the two lock operations.
+      // getMany is the admin-set lock; the first getOne is the target
+      // row lock; the second getOne is the post-update refetch.
+      const calls: string[] = [];
+      lockQb.getMany.mockImplementation(async () => {
+        calls.push('admins');
+        return [{ id: 'admin-to-demote' }, { id: 'other' }];
+      });
+      lockQb.getOne
+        .mockImplementationOnce(async () => {
+          calls.push('target');
+          return makeAdmin({ id: 'admin-to-demote' });
+        })
+        .mockImplementationOnce(async () =>
+          makeAdmin({ id: 'admin-to-demote', role: UserRole.USER }),
+        );
+
+      await service.setRole('other', 'admin-to-demote', UserRole.USER);
+
+      expect(calls[0]).toBe('admins');
+      expect(calls[1]).toBe('target');
+    });
+
+    it('asks for the admin lock with ORDER BY id ASC (the deadlock-prevention knob)', async () => {
+      lockQb.getOne
+        .mockResolvedValueOnce(makeUser({ id: 'u2', role: UserRole.USER }))
+        .mockResolvedValueOnce(makeUser({ id: 'u2', role: UserRole.ADMIN }));
+
+      await service.setRole('admin-1', 'u2', UserRole.ADMIN);
+
+      expect(lockQb.orderBy).toHaveBeenCalledWith('user.id', 'ASC');
     });
 
     it('blocks a demotion that would remove the last admin (409)', async () => {

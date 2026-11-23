@@ -81,6 +81,14 @@ export class AdminUsersService {
     }
 
     return this.dataSource.transaction(async (em) => {
+      // Lock the admin set FIRST, in id order. This is the fixed point of
+      // every admin-mutating transaction: whoever enters here first holds
+      // all admin row locks and others queue. Two concurrent demotions
+      // therefore cannot form a lock cycle — one proceeds, the other
+      // waits, re-reads the (now-smaller) admin set and fails the
+      // last-admin check with a clean 409 instead of a MySQL deadlock.
+      const admins = await this.lockActiveAdmins(em);
+
       const target = await this.loadForWrite(em, targetId);
       if (target.deletedAt !== null) {
         // Deleted users shouldn't appear in admin lookups for role change.
@@ -93,9 +101,10 @@ export class AdminUsersService {
       // retry PATCH without poisoning the state.
       if (target.role === newRole) return target;
 
-      // Demoting an admin? Last-admin check guards the invariant.
+      // Demoting an admin? Last-admin check guards the invariant. The
+      // count comes from the list we already locked above.
       if (target.role === UserRole.ADMIN && newRole !== UserRole.ADMIN) {
-        await this.assertNotLastAdmin(em);
+        this.assertNotLastAdmin(admins);
       }
 
       await em.getRepository(User).update(
@@ -120,6 +129,9 @@ export class AdminUsersService {
     }
 
     await this.dataSource.transaction(async (em) => {
+      // Same fixed lock order as setRole: admin set first, target second.
+      const admins = await this.lockActiveAdmins(em);
+
       const target = await this.loadForWrite(em, targetId);
       if (target.deletedAt !== null) {
         // Already soft-deleted: 404 for the same leak reason as above.
@@ -127,7 +139,7 @@ export class AdminUsersService {
       }
 
       if (target.role === UserRole.ADMIN) {
-        await this.assertNotLastAdmin(em);
+        this.assertNotLastAdmin(admins);
       }
 
       await em.getRepository(User).softDelete({ id: targetId });
@@ -185,21 +197,27 @@ export class AdminUsersService {
     return row;
   }
 
-  // SELECT every active admin row FOR UPDATE. Two concurrent transactions
-  // that both reach this line block each other on at least one row — one
-  // commits first, the second re-reads the (now-smaller) admin set and sees
-  // count <= 1, then throws. That prevents both from committing a demotion
-  // and leaving zero admins.
-  private async assertNotLastAdmin(em: EntityManager): Promise<void> {
-    const admins = await em
+  // SELECT every active admin row FOR UPDATE, ordered by id ASC. The order
+  // matters: two concurrent transactions acquiring row locks in the SAME
+  // order can only ever queue, never deadlock. Called FIRST in every
+  // admin-mutating transaction so the "locks taken before the target row"
+  // invariant holds across setRole and softDelete.
+  private async lockActiveAdmins(em: EntityManager): Promise<Pick<User, 'id'>[]> {
+    return em
       .getRepository(User)
       .createQueryBuilder('user')
       .setLock('pessimistic_write')
       .select(['user.id'])
       .where('user.role = :role', { role: UserRole.ADMIN })
       .andWhere({ deletedAt: IsNull() })
+      .orderBy('user.id', 'ASC')
       .getMany();
+  }
 
+  // Pure check against an already-locked admin list. Separating the lock
+  // from the check lets callers hold the lock for the whole transaction
+  // (not just for the duration of this one assertion).
+  private assertNotLastAdmin(admins: Pick<User, 'id'>[]): void {
     if (admins.length <= 1) {
       throw new ConflictException('cannot remove the last admin');
     }
