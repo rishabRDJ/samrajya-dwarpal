@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { IsNull, QueryFailedError, Repository } from 'typeorm';
@@ -60,8 +60,20 @@ export class UsersService {
     return { id: row.id, role: row.role, passwordHash: row.passwordHash };
   }
 
-  // Used by TokenService.rotate() to confirm the refresh token's owner still
-  // exists and hasn't been soft-deleted since issuance.
+  // Returns the full active user or throws 401. Used by self-service /users/me
+  // handlers that want the whole profile loaded fresh from the DB so demotion
+  // and soft-deletion take effect immediately instead of waiting for the
+  // 15-minute access token to expire.
+  async getActiveProfile(id: string): Promise<User> {
+    const user = await this.users.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
+    if (!user) throw new UnauthorizedException();
+    return user;
+  }
+
+  // Used by TokenService.rotate() and RolesGuard to confirm the subject still
+  // exists and hasn't been soft-deleted since the token was issued.
   async findActiveById(
     id: string,
   ): Promise<{ id: string; role: UserRole } | null> {

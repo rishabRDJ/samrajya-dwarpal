@@ -58,6 +58,22 @@ describe('UsersService', () => {
     });
   });
 
+  describe('getActiveProfile', () => {
+    it('returns the full user when active', async () => {
+      const row = { id: 'u1', username: 'rishab', role: UserRole.USER } as any;
+      repoMock.findOne.mockResolvedValue(row);
+      await expect(service.getActiveProfile('u1')).resolves.toBe(row);
+    });
+
+    it('throws 401 when missing or soft-deleted', async () => {
+      repoMock.findOne.mockResolvedValue(null);
+      const { UnauthorizedException } = await import('@nestjs/common');
+      await expect(service.getActiveProfile('u1')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+  });
+
   describe('findActiveById', () => {
     it('returns id and role when row exists', async () => {
       repoMock.findOne.mockResolvedValue({ id: 'u1', role: UserRole.ADMIN });
