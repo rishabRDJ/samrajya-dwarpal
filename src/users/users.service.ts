@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
-import { IsNull, QueryFailedError, Repository } from 'typeorm';
+import { EntityManager, IsNull, QueryFailedError, Repository } from 'typeorm';
 import { User, UserRole } from './user.entity.js';
 
 // Plain structural input so UsersService does not depend on auth/dto. The
@@ -98,6 +98,40 @@ export class UsersService {
     return row ? { id: row.id, role: row.role } : null;
   }
 
+  // Minimum needed to orchestrate a password change: identity + current hash.
+  // Used by AuthService.changePassword — it verifies against the current hash
+  // and then re-issues tokens with the role. Keep it narrow so the password
+  // hash does not spread to other callers.
+  async getPasswordContext(
+    userId: string,
+  ): Promise<{ id: string; role: UserRole; passwordHash: string } | null> {
+    const row = await this.users
+      .createQueryBuilder('user')
+      .select(['user.id', 'user.role', 'user.passwordHash'])
+      .where('user.id = :id', { id: userId })
+      .andWhere('user.deletedAt IS NULL')
+      .getOne();
+    return row
+      ? { id: row.id, role: row.role, passwordHash: row.passwordHash }
+      : null;
+  }
+
+  // Thin DB-only update. Pass `manager` to join a surrounding transaction.
+  async updatePasswordHash(
+    userId: string,
+    newHash: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager ? manager.getRepository(User) : this.users;
+    await repo.update({ id: userId }, { passwordHash: newHash, lastUpdatedBy: userId });
+  }
+
+  // argon2 settings live in one place. Callers should not import argon2 and
+  // compute hashes themselves — that silently diverges tuning over time.
+  async hashPassword(rawPassword: string): Promise<string> {
+    return argon2.hash(rawPassword);
+  }
+
   // argon2.verify is constant-time and handles salt + params that were baked
   // into the stored hash at signup time. Never compare hashes with ===.
   async verifyPassword(
@@ -118,7 +152,7 @@ export class UsersService {
   }
 
   async register(input: RegisterInput): Promise<User> {
-    const passwordHash = await argon2.hash(input.password);
+    const passwordHash = await this.hashPassword(input.password);
     const user = this.users.create({
       username: input.username,
       emailAddress: input.emailAddress,

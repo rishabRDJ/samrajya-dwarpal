@@ -3,7 +3,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { RefreshToken } from './refresh-token.entity.js';
 import { UserRole } from '../users/user.entity.js';
 import { TokenResponseDto } from './dto/token-response.dto.js';
@@ -104,8 +104,13 @@ export class TokenService {
     return { rawToken, expiresAt };
   }
 
-  private async revokeAllForUser(userId: string): Promise<void> {
-    await this.refreshRepo.update(
+  // Public so password change and admin role/delete flows can call it.
+  // Pass the EntityManager when joining a surrounding transaction (e.g.
+  // changePassword wants the password UPDATE and the refresh revoke to
+  // commit together); omit it for one-off revokes like refresh-token reuse.
+  async revokeAllForUser(userId: string, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(RefreshToken) : this.refreshRepo;
+    await repo.update(
       { userId, revokedAt: IsNull() },
       { revokedAt: new Date() },
     );

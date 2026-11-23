@@ -173,4 +173,31 @@ describe('TokenService', () => {
     const storedValues = Object.values(row);
     expect(storedValues).not.toContain(result.refreshToken);
   });
+
+  describe('revokeAllForUser', () => {
+    it('updates every active refresh token for the user on the default repo', async () => {
+      const repo = moduleRef.get(getRepositoryToken(RefreshToken)) as any;
+      await service.revokeAllForUser('u1');
+      expect(repo.update).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1' }),
+        expect.objectContaining({ revokedAt: expect.any(Date) }),
+      );
+    });
+
+    it('routes through the EntityManager repository when a manager is passed (transactional)', async () => {
+      const managerRepo = { update: jest.fn() };
+      const manager = { getRepository: jest.fn(() => managerRepo) } as any;
+      const defaultRepo = moduleRef.get(getRepositoryToken(RefreshToken)) as any;
+
+      await service.revokeAllForUser('u1', manager);
+
+      expect(manager.getRepository).toHaveBeenCalledWith(RefreshToken);
+      expect(managerRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1' }),
+        expect.objectContaining({ revokedAt: expect.any(Date) }),
+      );
+      // Transactional path must NOT touch the default repo.
+      expect(defaultRepo.update).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -155,6 +155,51 @@ describe('UsersService', () => {
     });
   });
 
+  describe('getPasswordContext', () => {
+    it('returns id, role and passwordHash via QueryBuilder (addSelect on passwordHash)', async () => {
+      qb.getOne.mockResolvedValue({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
+      const out = await service.getPasswordContext('u1');
+      expect(qb.where).toHaveBeenCalledWith('user.id = :id', { id: 'u1' });
+      expect(out).toEqual({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
+    });
+
+    it('returns null when the user is missing or soft-deleted', async () => {
+      qb.getOne.mockResolvedValue(undefined);
+      expect(await service.getPasswordContext('u1')).toBeNull();
+    });
+  });
+
+  describe('updatePasswordHash', () => {
+    it('updates the stored hash and stamps lastUpdatedBy on the default repo when no manager is passed', async () => {
+      await service.updatePasswordHash('u1', 'newhash');
+      expect(repoMock.update).toHaveBeenCalledWith(
+        { id: 'u1' },
+        { passwordHash: 'newhash', lastUpdatedBy: 'u1' },
+      );
+    });
+
+    it('uses the EntityManager repository when one is passed (transactional)', async () => {
+      const managerRepo = { update: jest.fn() };
+      const manager = { getRepository: jest.fn(() => managerRepo) } as any;
+      await service.updatePasswordHash('u1', 'newhash', manager);
+      expect(manager.getRepository).toHaveBeenCalled();
+      expect(managerRepo.update).toHaveBeenCalledWith(
+        { id: 'u1' },
+        { passwordHash: 'newhash', lastUpdatedBy: 'u1' },
+      );
+      // Default repo must NOT be touched when a manager is supplied.
+      expect(repoMock.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('hashPassword', () => {
+    it('produces an argon2id hash that round-trips through argon2.verify', async () => {
+      const hash = await service.hashPassword('correct horse battery staple');
+      expect(hash).toMatch(/^\$argon2/);
+      expect(await argon2.verify(hash, 'correct horse battery staple')).toBe(true);
+    });
+  });
+
   describe('updateProfile', () => {
     beforeEach(() => {
       // getActiveProfile is called at the end to return the fresh row.

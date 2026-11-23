@@ -8,6 +8,7 @@ import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './jwt.strategy.js';
 import { RefreshToken } from './refresh-token.entity.js';
 import { TokenService } from './token.service.js';
+import { UserPasswordController } from './user-password.controller.js';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { TokenService } from './token.service.js';
     JwtModule.register({}),
     UsersModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, UserPasswordController],
   providers: [TokenService, JwtStrategy, AuthService],
   // Export AuthService so a future admin module (PR C Step 5+) can call
   // changePassword() without rewiring auth internals.
