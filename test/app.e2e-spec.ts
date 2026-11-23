@@ -31,14 +31,26 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  it('/v1 (GET)', () => {
+  afterEach(async () => {
+    await app.close();
+  });
+
+  // Root is now @Version(VERSION_NEUTRAL): lives at / regardless of API
+  // version. (Was /v1 under the old setGlobalPrefix model.)
+  it('GET / returns the hello string without a version prefix', () => {
     return request(app.getHttpServer())
-      .get('/v1')
+      .get('/')
       .expect(200)
       .expect('Hello World!');
   });
 
-  afterEach(async () => {
-    await app.close();
+  it('GET /health responds without a /v1 prefix', () => {
+    return request(app.getHttpServer()).get('/health').expect(200);
+  });
+
+  // Acceptance check from PR C Step 2: a versioned URL must NOT exist for
+  // handlers marked VERSION_NEUTRAL, so /v1/health is deliberately 404.
+  it('GET /v1/health is 404 (health is unversioned)', () => {
+    return request(app.getHttpServer()).get('/v1/health').expect(404);
   });
 });

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AdminModule } from '../src/admin/admin.module.js';
 import { AppController } from '../src/app.controller.js';
 import { AppService } from '../src/app.service.js';
 import { AuthModule } from '../src/auth/auth.module.js';
@@ -33,6 +34,7 @@ import { UsersModule } from '../src/users/users.module.js';
     }),
     UsersModule,
     AuthModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
