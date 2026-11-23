@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { UsersService } from '../users/users.service.js';
@@ -51,17 +56,26 @@ export class AuthService {
   }
 
   // Verify the current password, atomically swap the hash and revoke all
-  // refresh tokens, then issue a fresh pair. The transaction binds the
-  // password update to the revocation so a failure cannot leave old refresh
-  // tokens usable with the new password. The fresh pair is minted AFTER the
-  // transaction commits so a transient failure never leaks a token the user
-  // thinks they have but we lost. argon2 hashing runs BEFORE the transaction
-  // because it is CPU-bound (~50-200ms) and we do not want to hold a DB
-  // transaction open that long.
+  // refresh tokens, then issue a fresh pair. Three invariants to notice:
+  //   1. Hash is computed BEFORE the transaction opens. argon2 is CPU-bound
+  //      (~50-200ms); we never hold a DB transaction open for that.
+  //   2. The UPDATE is a compare-and-set against the hash we verified. If
+  //      the row was mutated between verify and update (concurrent
+  //      self-change, future admin reset, direct SQL) the UPDATE matches
+  //      zero rows and we throw 409 — we do NOT overwrite the fresh value.
+  //   3. The fresh pair is minted AFTER the transaction commits so a
+  //      transient failure never leaks a token we then roll back.
   async changePassword(
     userId: string,
     input: ChangePasswordInput,
   ): Promise<TokenResponseDto> {
+    // Early, cheap rejection: refusing "same as current" before argon2
+    // saves the user 100ms and side-steps the question of whether 400 or
+    // 401 wins on same-wrong-same inputs.
+    if (input.currentPassword === input.newPassword) {
+      throw new BadRequestException('new password must differ from current password');
+    }
+
     const found = await this.users.getPasswordContext(userId);
     if (!found) throw new UnauthorizedException();
 
@@ -71,7 +85,17 @@ export class AuthService {
     const newHash = await this.users.hashPassword(input.newPassword);
 
     await this.dataSource.transaction(async (em) => {
-      await this.users.updatePasswordHash(userId, newHash, em);
+      const swapped = await this.users.updatePasswordHash(
+        userId,
+        found.passwordHash,
+        newHash,
+        em,
+      );
+      if (!swapped) {
+        throw new ConflictException(
+          'password was changed by another process; try again',
+        );
+      }
       await this.tokens.revokeAllForUser(userId, em);
     });
 

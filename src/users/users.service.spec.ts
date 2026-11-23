@@ -170,21 +170,29 @@ describe('UsersService', () => {
   });
 
   describe('updatePasswordHash', () => {
-    it('updates the stored hash and stamps lastUpdatedBy on the default repo when no manager is passed', async () => {
-      await service.updatePasswordHash('u1', 'newhash');
+    it('compare-and-set: WHERE includes id AND the expected current hash, SET swaps + stamps', async () => {
+      repoMock.update = jest.fn(async () => ({ affected: 1 }));
+      const ok = await service.updatePasswordHash('u1', 'oldhash', 'newhash');
+      expect(ok).toBe(true);
       expect(repoMock.update).toHaveBeenCalledWith(
-        { id: 'u1' },
+        { id: 'u1', passwordHash: 'oldhash' },
         { passwordHash: 'newhash', lastUpdatedBy: 'u1' },
       );
     });
 
+    it('returns false when nothing matched (row was mutated under us)', async () => {
+      repoMock.update = jest.fn(async () => ({ affected: 0 }));
+      const ok = await service.updatePasswordHash('u1', 'staleOldHash', 'newhash');
+      expect(ok).toBe(false);
+    });
+
     it('uses the EntityManager repository when one is passed (transactional)', async () => {
-      const managerRepo = { update: jest.fn() };
+      const managerRepo = { update: jest.fn(async () => ({ affected: 1 })) };
       const manager = { getRepository: jest.fn(() => managerRepo) } as any;
-      await service.updatePasswordHash('u1', 'newhash', manager);
+      await service.updatePasswordHash('u1', 'oldhash', 'newhash', manager);
       expect(manager.getRepository).toHaveBeenCalled();
       expect(managerRepo.update).toHaveBeenCalledWith(
-        { id: 'u1' },
+        { id: 'u1', passwordHash: 'oldhash' },
         { passwordHash: 'newhash', lastUpdatedBy: 'u1' },
       );
       // Default repo must NOT be touched when a manager is supplied.

@@ -116,14 +116,24 @@ export class UsersService {
       : null;
   }
 
-  // Thin DB-only update. Pass `manager` to join a surrounding transaction.
+  // Compare-and-set password update. `expectedCurrentHash` becomes part of
+  // the WHERE so a concurrent write — another /me/password tab, a future
+  // admin password-reset, anything that mutates the row between our verify
+  // and our UPDATE — is detected: result.affected === 0 means the row no
+  // longer matches what we verified, and we must NOT overwrite it blindly.
+  // Returns true on a successful swap, false on a losing race.
   async updatePasswordHash(
     userId: string,
+    expectedCurrentHash: string,
     newHash: string,
     manager?: EntityManager,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const repo = manager ? manager.getRepository(User) : this.users;
-    await repo.update({ id: userId }, { passwordHash: newHash, lastUpdatedBy: userId });
+    const result = await repo.update(
+      { id: userId, passwordHash: expectedCurrentHash },
+      { passwordHash: newHash, lastUpdatedBy: userId },
+    );
+    return (result.affected ?? 0) === 1;
   }
 
   // argon2 settings live in one place. Callers should not import argon2 and

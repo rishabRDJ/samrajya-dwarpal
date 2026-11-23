@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import 'reflect-metadata';
 import { jest } from '@jest/globals';
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '../users/user.entity.js';
@@ -134,6 +134,7 @@ describe('AuthService', () => {
       users.getPasswordContext.mockResolvedValue(ctx);
       users.verifyPassword.mockResolvedValue(true);
       users.hashPassword.mockResolvedValue('newhash');
+      users.updatePasswordHash.mockResolvedValue(true);
       tokens.issueTokensForUser.mockResolvedValue(tokenPair);
 
       const result = await service.changePassword('u1', input);
@@ -142,11 +143,40 @@ describe('AuthService', () => {
       // argon2 happens BEFORE the transaction opens.
       expect(users.hashPassword).toHaveBeenCalledWith(input.newPassword);
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-      // Both inner writes receive the same EntityManager handle.
-      expect(users.updatePasswordHash).toHaveBeenCalledWith('u1', 'newhash', txManager);
+      // Compare-and-set: expected current hash is part of the swap.
+      expect(users.updatePasswordHash).toHaveBeenCalledWith(
+        'u1',
+        'oldhash',
+        'newhash',
+        txManager,
+      );
       expect(tokens.revokeAllForUser).toHaveBeenCalledWith('u1', txManager);
       // Fresh tokens issued AFTER the transaction.
       expect(tokens.issueTokensForUser).toHaveBeenCalledWith({ id: 'u1', role: UserRole.USER });
+    });
+
+    it('throws 400 when new password equals current password (early, no argon2)', async () => {
+      await expect(
+        service.changePassword('u1', { currentPassword: 'same', newPassword: 'same' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(users.getPasswordContext).not.toHaveBeenCalled();
+      expect(users.hashPassword).not.toHaveBeenCalled();
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 when the compare-and-set loses the race (someone else changed the password)', async () => {
+      users.getPasswordContext.mockResolvedValue(ctx);
+      users.verifyPassword.mockResolvedValue(true);
+      users.hashPassword.mockResolvedValue('newhash');
+      users.updatePasswordHash.mockResolvedValue(false); // row no longer matches
+
+      await expect(service.changePassword('u1', input)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      // Revoke must NOT run if the swap failed — otherwise we'd nuke the
+      // sessions of whoever just legitimately set the new password.
+      expect(tokens.revokeAllForUser).not.toHaveBeenCalled();
+      expect(tokens.issueTokensForUser).not.toHaveBeenCalled();
     });
 
     it('throws 401 when the user no longer exists (or is soft-deleted)', async () => {
@@ -175,6 +205,7 @@ describe('AuthService', () => {
       users.getPasswordContext.mockResolvedValue(ctx);
       users.verifyPassword.mockResolvedValue(true);
       users.hashPassword.mockResolvedValue('newhash');
+      users.updatePasswordHash.mockResolvedValue(true);
       dataSource.transaction.mockImplementationOnce(async () => {
         throw new Error('db down');
       });
