@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { IsNull, QueryFailedError, Repository } from 'typeorm';
@@ -18,6 +23,15 @@ export interface RegisterInput {
 export interface AvailabilityInput {
   username?: string;
   emailAddress?: string;
+}
+
+// Patch shape for PATCH /users/me. All fields optional; undefined means "don't
+// touch", null on phoneNumber means "clear it". At least one field must be
+// defined — the service guards that so controllers can stay trivial.
+export interface UpdateProfileInput {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string | null;
 }
 
 // MySQL's duplicate-key error code. TypeORM surfaces the underlying driver
@@ -125,6 +139,35 @@ export class UsersService {
       }
       throw err;
     }
+  }
+
+  // Patches a self-service profile. 'at least one field' is enforced here so
+  // the controller stays a one-liner. Duplicate phoneNumber → 409 (unique
+  // index on phoneNumber in the user entity). Soft-deleted users cannot edit
+  // themselves — the UPDATE's WHERE guards that, and the follow-up read via
+  // getActiveProfile throws 401 if the row has vanished.
+  async updateProfile(userId: string, input: UpdateProfileInput): Promise<User> {
+    const patch: Partial<User> = {};
+    if (input.firstName !== undefined) patch.firstName = input.firstName;
+    if (input.lastName !== undefined) patch.lastName = input.lastName;
+    if (input.phoneNumber !== undefined) patch.phoneNumber = input.phoneNumber;
+
+    if (Object.keys(patch).length === 0) {
+      throw new BadRequestException(
+        'at least one of firstName, lastName, phoneNumber must be provided',
+      );
+    }
+    patch.lastUpdatedBy = userId;
+
+    try {
+      await this.users.update({ id: userId, deletedAt: IsNull() }, patch);
+    } catch (err) {
+      if (isDuplicateKey(err)) {
+        throw new ConflictException('phone number already in use');
+      }
+      throw err;
+    }
+    return this.getActiveProfile(userId);
   }
 
   // Soft-deleted identifiers stay reserved (spec), so withDeleted: true.

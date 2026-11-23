@@ -182,6 +182,6 @@ describe('Auth (e2e)', () => {
   });
 
   it('a protected route returns 401 without a bearer token', async () => {
-    await request(app.getHttpServer()).get('/v1/me').expect(401);
+    await request(app.getHttpServer()).get('/v1/users/me').expect(401);
   });
 });

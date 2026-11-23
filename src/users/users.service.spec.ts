@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import 'reflect-metadata';
 import { jest } from '@jest/globals';
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
@@ -152,6 +152,71 @@ describe('UsersService', () => {
         throw boom;
       });
       await expect(service.register(input)).rejects.toBe(boom);
+    });
+  });
+
+  describe('updateProfile', () => {
+    beforeEach(() => {
+      // getActiveProfile is called at the end to return the fresh row.
+      repoMock.update = jest.fn(async () => ({ affected: 1 }));
+      repoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        firstName: 'New',
+        lastName: 'Name',
+        phoneNumber: '+919876543210',
+      });
+    });
+
+    it('builds a patch from only the provided fields and stamps lastUpdatedBy', async () => {
+      await service.updateProfile('u1', { firstName: 'New' });
+      const [criteria, patch] = repoMock.update.mock.calls[0];
+      expect(criteria).toEqual(expect.objectContaining({ id: 'u1' }));
+      expect(patch).toEqual({ firstName: 'New', lastUpdatedBy: 'u1' });
+      expect(patch.lastName).toBeUndefined();
+      expect(patch.phoneNumber).toBeUndefined();
+    });
+
+    it('allows null phoneNumber (clears the stored value)', async () => {
+      await service.updateProfile('u1', { phoneNumber: null });
+      const [, patch] = repoMock.update.mock.calls[0];
+      expect(patch.phoneNumber).toBeNull();
+    });
+
+    it('throws 400 when no fields are provided', async () => {
+      await expect(service.updateProfile('u1', {})).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(repoMock.update).not.toHaveBeenCalled();
+    });
+
+    it('maps a MySQL duplicate-key error into 409', async () => {
+      const dup = new QueryFailedError('q', [], new Error('dup'));
+      (dup as any).driverError = { code: 'ER_DUP_ENTRY' };
+      repoMock.update = jest.fn(async () => {
+        throw dup;
+      });
+      await expect(
+        service.updateProfile('u1', { phoneNumber: '+919876543210' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rethrows unexpected database errors as-is', async () => {
+      const boom = new QueryFailedError('q', [], new Error('boom'));
+      (boom as any).driverError = { code: 'ER_SOMETHING_ELSE' };
+      repoMock.update = jest.fn(async () => {
+        throw boom;
+      });
+      await expect(
+        service.updateProfile('u1', { firstName: 'X' }),
+      ).rejects.toBe(boom);
+    });
+
+    it('re-reads the fresh profile after updating', async () => {
+      const result = await service.updateProfile('u1', { firstName: 'New' });
+      expect(repoMock.findOne).toHaveBeenCalled();
+      expect(result).toEqual(
+        expect.objectContaining({ id: 'u1', firstName: 'New' }),
+      );
     });
   });
 
