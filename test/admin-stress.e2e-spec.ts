@@ -133,7 +133,6 @@ describe('Admin concurrency stress (e2e) — 10 users, 2 random admins, mutual p
 
       // 2. Pick two admins at random. Seed logged so a failure reproduces.
       const seed = Date.now();
-      // eslint-disable-next-line no-console
       console.log(`[admin-stress] seed = ${seed}`);
       const rng = seededRandom(seed);
       const [adminA, adminB] = shuffle(users, rng).slice(0, 2);

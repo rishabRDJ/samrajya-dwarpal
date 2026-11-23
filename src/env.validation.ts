@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsPositive,
@@ -8,6 +9,21 @@ import {
   MinLength,
   validateSync,
 } from 'class-validator';
+
+// Centralised so a typo at an env-group level cannot sneak in silently.
+export const APP_ENVS = ['local', 'preview', 'production'] as const;
+export type AppEnv = (typeof APP_ENVS)[number];
+
+export const LOG_LEVELS = [
+  'fatal',
+  'error',
+  'warn',
+  'info',
+  'debug',
+  'trace',
+  'silent',
+] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
 
 // Shape of the environment once validated. ConfigService will still return
 // strings (its own API) but the validate() hook below guarantees every value
@@ -51,6 +67,18 @@ class EnvironmentVariables {
   @IsInt()
   @IsPositive()
   REFRESH_TOKEN_TTL_DAYS: number;
+
+  // The deployment lane. Added so a Render preview / production build cannot
+  // start without a declared env — the same value is the `env` base field on
+  // every log line.
+  @IsIn(APP_ENVS)
+  APP_ENV: AppEnv;
+
+  // Optional; defaults to 'info' at pino-options construction time. Listed
+  // here so a typo like LOG_LEVEL=debg fails fast at boot.
+  @IsOptional()
+  @IsIn(LOG_LEVELS)
+  LOG_LEVEL?: LogLevel;
 }
 
 export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables {

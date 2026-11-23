@@ -49,6 +49,8 @@ jobs:
       JWT_ACCESS_SECRET: ci-only-jwt-secret-ci-only-jwt-secret-ci-only
       JWT_ACCESS_EXPIRES_IN: 15m
       REFRESH_TOKEN_TTL_DAYS: 7
+      # Required by env.validation; APP_ENV=local matches the local/CI lane.
+      APP_ENV: local
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

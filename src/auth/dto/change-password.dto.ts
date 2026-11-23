@@ -13,11 +13,11 @@ export class ChangePasswordDto {
 
   @ApiProperty({
     example: 'a new sufficiently long password',
-    minLength: 12,
+    minLength: 8,
     maxLength: 128,
   })
   @IsString()
-  @MinLength(12)
+  @MinLength(8)
   @MaxLength(128)
   newPassword: string;
 }

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, IsNull, Repository } from 'typeorm';
+import { ScopedLogger } from '../common/logging/scoped-logger.js';
 import { RefreshToken } from './refresh-token.entity.js';
 import { UserRole } from '../users/user.entity.js';
 import { TokenResponseDto } from './dto/token-response.dto.js';
@@ -20,7 +21,10 @@ export class TokenService {
     private readonly config: ConfigService,
     @InjectRepository(RefreshToken)
     private readonly refreshRepo: Repository<RefreshToken>,
-  ) {}
+    private readonly logger: ScopedLogger,
+  ) {
+    this.logger.forClass(TokenService.name);
+  }
 
   async issueTokensForUser(user: { id: string; role: UserRole }): Promise<TokenResponseDto> {
     const accessToken = await this.signAccessToken(user);
@@ -39,23 +43,35 @@ export class TokenService {
   // with the same raw token cannot both rotate successfully: exactly one wins,
   // the loser is treated as reuse.
   async rotate(rawRefreshToken: string, userLookup: (id: string) => Promise<{ id: string; role: UserRole } | null>): Promise<TokenResponseDto> {
+    const log = this.logger.in('rotate');
     const tokenHash = this.hashToken(rawRefreshToken);
     const stored = await this.refreshRepo.findOne({ where: { tokenHash } });
 
-    if (!stored) throw new UnauthorizedException();
+    if (!stored) {
+      log.warn('auth.refresh.rejected', { reason: 'unknown' });
+      throw new UnauthorizedException();
+    }
 
     // Already-revoked at read time: a deliberate reuse attempt.
     if (stored.revokedAt !== null) {
       await this.revokeAllForUser(stored.userId);
+      log.warn('auth.refresh.reuse_detected', {
+        userId: stored.userId,
+        note: 'all sessions revoked',
+      });
       throw new UnauthorizedException();
     }
 
     if (stored.expiresAt.getTime() <= Date.now()) {
+      log.warn('auth.refresh.rejected', { reason: 'expired' });
       throw new UnauthorizedException();
     }
 
     const user = await userLookup(stored.userId);
-    if (!user) throw new UnauthorizedException();
+    if (!user) {
+      log.warn('auth.refresh.rejected', { reason: 'user_inactive' });
+      throw new UnauthorizedException();
+    }
 
     // Atomic claim: only one caller can flip revokedAt from NULL to non-NULL
     // for this row. If affected === 0, a concurrent request beat us; treat
@@ -67,10 +83,16 @@ export class TokenService {
 
     if (result.affected !== 1) {
       await this.revokeAllForUser(stored.userId);
+      log.warn('auth.refresh.reuse_detected', {
+        userId: stored.userId,
+        note: 'all sessions revoked',
+      });
       throw new UnauthorizedException();
     }
 
-    return this.issueTokensForUser(user);
+    const fresh = await this.issueTokensForUser(user);
+    log.debug('auth.refresh.succeeded', { userId: user.id });
+    return fresh;
   }
 
   // Idempotent revoke. Unknown tokens succeed silently so the endpoint doesn't
@@ -81,6 +103,10 @@ export class TokenService {
       { tokenHash, revokedAt: IsNull() },
       { revokedAt: new Date() },
     );
+    // Logged after the write; `userId` is intentionally absent because the
+    // endpoint is anonymous and we don't look up which user this hash belongs
+    // to (would be a DB read + a privacy leak into the logs).
+    this.logger.in('revoke').info('auth.logout');
   }
 
   private async signAccessToken(user: { id: string; role: UserRole }): Promise<string> {

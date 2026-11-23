@@ -6,6 +6,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { IsNull, QueryFailedError } from 'typeorm';
+import { ScopedLogger } from '../common/logging/scoped-logger.js';
+import { createScopedLoggerMock, type ScopedLoggerMock } from '../common/logging/scoped-logger.mock.js';
 import { User, UserRole } from './user.entity.js';
 import { UsersService } from './users.service.js';
 
@@ -13,6 +15,7 @@ describe('UsersService', () => {
   let service: UsersService;
   let repoMock: any;
   let qb: any;
+  let logger: ScopedLoggerMock;
 
   beforeEach(async () => {
     // findForAuth uses a QueryBuilder; the other methods use findOne/update.
@@ -29,10 +32,12 @@ describe('UsersService', () => {
       update: jest.fn(),
     };
 
+    logger = createScopedLoggerMock();
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: repoMock },
+        { provide: ScopedLogger, useValue: logger.instance },
       ],
     }).compile();
     service = moduleRef.get(UsersService);
@@ -108,6 +113,91 @@ describe('UsersService', () => {
       const [criteria, patch] = repoMock.update.mock.calls[0];
       expect(criteria).toEqual({ id: 'u1' });
       expect(patch.lastLoginAt).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('logging', () => {
+    it('register success emits auth.register.succeeded with the new userId', async () => {
+      repoMock.create = jest.fn((v: any) => v);
+      repoMock.save = jest.fn(async (v: any) => ({ id: 'new-id', ...v }));
+      await service.register({
+        username: 'rishab',
+        emailAddress: 'r@example.com',
+        firstName: 'R',
+        lastName: 'J',
+        password: 'correct horse battery staple',
+      });
+      expect(logger.info).toHaveBeenCalledWith('auth.register.succeeded', { userId: 'new-id' });
+    });
+
+    it('register duplicate emits auth.register.conflict (no fields)', async () => {
+      const dup = new QueryFailedError('q', [], new Error('dup'));
+      (dup as any).driverError = { code: 'ER_DUP_ENTRY' };
+      repoMock.create = jest.fn((v: any) => v);
+      repoMock.save = jest.fn(async () => {
+        throw dup;
+      });
+      await expect(
+        service.register({
+          username: 'rishab',
+          emailAddress: 'r@example.com',
+          firstName: 'R',
+          lastName: 'J',
+          password: 'correct horse battery staple',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(logger.warn).toHaveBeenCalledWith('auth.register.conflict');
+    });
+
+    it('updateProfile logs only the NAMES of changed fields, not values', async () => {
+      repoMock.update = jest.fn(async () => ({ affected: 1 }));
+      repoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        firstName: 'Changed',
+        lastName: 'X',
+        phoneNumber: '+919876543210',
+      });
+      await service.updateProfile('u1', {
+        firstName: 'Changed',
+        phoneNumber: '+919876543210',
+      });
+
+      // The info-level success line.
+      const infoCall = logger.info.mock.calls.find(
+        (c: unknown[]) => c[0] === 'user.profile.updated',
+      );
+      expect(infoCall).toBeDefined();
+      const payload = infoCall![1] as { userId: string; fields: string[] };
+      expect(payload.userId).toBe('u1');
+      // Names only — must list firstName and phoneNumber, not their values.
+      expect(payload.fields).toEqual(expect.arrayContaining(['firstName', 'phoneNumber']));
+      expect(payload.fields).not.toEqual(expect.arrayContaining(['lastName']));
+      // Values must never appear anywhere in the log call.
+      expect(JSON.stringify(payload)).not.toContain('Changed');
+      expect(JSON.stringify(payload)).not.toContain('+919876543210');
+    });
+
+    it('updateProfile with no fields emits user.profile.update_failed reason no_fields', async () => {
+      await expect(service.updateProfile('u1', {})).rejects.toBeInstanceOf(BadRequestException);
+      expect(logger.warn).toHaveBeenCalledWith('user.profile.update_failed', {
+        userId: 'u1',
+        reason: 'no_fields',
+      });
+    });
+
+    it('updateProfile with duplicate phone emits user.profile.update_failed reason duplicate_phone', async () => {
+      const dup = new QueryFailedError('q', [], new Error('dup'));
+      (dup as any).driverError = { code: 'ER_DUP_ENTRY' };
+      repoMock.update = jest.fn(async () => {
+        throw dup;
+      });
+      await expect(
+        service.updateProfile('u1', { phoneNumber: '+919876543210' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(logger.warn).toHaveBeenCalledWith('user.profile.update_failed', {
+        userId: 'u1',
+        reason: 'duplicate_phone',
+      });
     });
   });
 

@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { EntityManager, IsNull, QueryFailedError, Repository } from 'typeorm';
+import { ScopedLogger } from '../common/logging/scoped-logger.js';
 import { User, UserRole } from './user.entity.js';
 
 // Plain structural input so UsersService does not depend on auth/dto. The
@@ -57,7 +58,10 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly users: Repository<User>,
-  ) {}
+    private readonly logger: ScopedLogger,
+  ) {
+    this.logger.forClass(UsersService.name);
+  }
 
   // Login identifier is either an email or a username; the '@' heuristic
   // decides which column to query. passwordHash has select: false on the
@@ -165,6 +169,7 @@ export class UsersService {
   }
 
   async register(input: RegisterInput): Promise<User> {
+    const log = this.logger.in('register');
     const passwordHash = await this.hashPassword(input.password);
     const user = this.users.create({
       username: input.username,
@@ -176,12 +181,15 @@ export class UsersService {
       role: UserRole.USER,
     });
     try {
-      return await this.users.save(user);
+      const saved = await this.users.save(user);
+      log.info('auth.register.succeeded', { userId: saved.id });
+      return saved;
     } catch (err) {
       // Generic message: do not reveal which field clashed. Clients that need
       // that detail should use GET /auth/availability first, which is the
       // explicit (rate-limited) enumeration surface.
       if (isDuplicateKey(err)) {
+        log.warn('auth.register.conflict');
         throw new ConflictException('username or email address already in use');
       }
       throw err;
@@ -194,12 +202,18 @@ export class UsersService {
   // themselves — the UPDATE's WHERE guards that, and the follow-up read via
   // getActiveProfile throws 401 if the row has vanished.
   async updateProfile(userId: string, input: UpdateProfileInput): Promise<User> {
+    const log = this.logger.in('updateProfile');
     const patch: Partial<User> = {};
     if (input.firstName !== undefined) patch.firstName = input.firstName;
     if (input.lastName !== undefined) patch.lastName = input.lastName;
     if (input.phoneNumber !== undefined) patch.phoneNumber = input.phoneNumber;
 
-    if (Object.keys(patch).length === 0) {
+    // Field NAMES only — never values. Captured now so a later refactor
+    // that mutates `patch` can't accidentally include them.
+    const changedFields = Object.keys(patch);
+
+    if (changedFields.length === 0) {
+      log.warn('user.profile.update_failed', { userId, reason: 'no_fields' });
       throw new BadRequestException(
         'at least one of firstName, lastName, phoneNumber must be provided',
       );
@@ -210,11 +224,17 @@ export class UsersService {
       await this.users.update({ id: userId, deletedAt: IsNull() }, patch);
     } catch (err) {
       if (isDuplicateKey(err)) {
+        log.warn('user.profile.update_failed', {
+          userId,
+          reason: 'duplicate_phone',
+        });
         throw new ConflictException('phone number already in use');
       }
       throw err;
     }
-    return this.getActiveProfile(userId);
+    const fresh = await this.getActiveProfile(userId);
+    log.info('user.profile.updated', { userId, fields: changedFields });
+    return fresh;
   }
 
   // Soft-deleted identifiers stay reserved (spec), so withDeleted: true.

@@ -14,7 +14,10 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { AuthenticatedUser } from '../auth/jwt.strategy.js';
-import { toUserResponse, UserResponseDto } from '../users/dto/user-response.dto.js';
+import {
+  toUserResponse,
+  UserResponseDto,
+} from '../users/dto/user-response.dto.js';
 import { UserRole } from '../users/user.entity.js';
 import { AdminUsersService } from './admin-users.service.js';
 import { ListAdminUsersQueryDto } from './dto/list-admin-users-query.dto.js';
@@ -34,8 +37,11 @@ export class AdminUsersController {
 
   @Get()
   @ApiOperation({ summary: 'List users (paginated) with optional filters' })
-  list(@Query() query: ListAdminUsersQueryDto): Promise<PaginatedUsersDto> {
-    return this.service.list(query);
+  list(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Query() query: ListAdminUsersQueryDto,
+  ): Promise<PaginatedUsersDto> {
+    return this.service.list(actor.id, query);
   }
 
   @Patch(':id/role')

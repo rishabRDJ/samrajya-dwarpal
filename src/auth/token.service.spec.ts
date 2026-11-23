@@ -7,6 +7,8 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ScopedLogger } from '../common/logging/scoped-logger.js';
+import { createScopedLoggerMock } from '../common/logging/scoped-logger.mock.js';
 import { UserRole } from '../users/user.entity.js';
 import { RefreshToken } from './refresh-token.entity.js';
 import { TokenService } from './token.service.js';
@@ -16,10 +18,12 @@ describe('TokenService', () => {
   let service: TokenService;
   let jwtService: JwtService;
   let saved: Partial<RefreshToken>[] = [];
+  let logger: ReturnType<typeof createScopedLoggerMock>;
   const JWT_SECRET = 'a'.repeat(48);
 
   beforeEach(async () => {
     saved = [];
+    logger = createScopedLoggerMock();
 
     // The repository mock remembers every save() so each test can inspect
     // exactly what hit the DB.
@@ -54,6 +58,7 @@ describe('TokenService', () => {
         TokenService,
         { provide: ConfigService, useValue: configMock },
         { provide: getRepositoryToken(RefreshToken), useValue: repoMock },
+        { provide: ScopedLogger, useValue: logger.instance },
       ],
     }).compile();
 
@@ -91,7 +96,7 @@ describe('TokenService', () => {
       ).rejects.toThrow('Unauthorized');
     });
 
-    it('nukes every active session when a revoked token is replayed (reuse)', async () => {
+    it('nukes every active session when a revoked token is replayed (reuse) and logs auth.refresh.reuse_detected with userId', async () => {
       const repo = moduleRef.get(getRepositoryToken(RefreshToken)) as any;
       repo.findOne = jest.fn(async () => ({
         id: 'r1',
@@ -110,6 +115,17 @@ describe('TokenService', () => {
         { userId: 'u1', revokedAt: expect.anything() },
         { revokedAt: expect.any(Date) },
       );
+      expect(logger.warn).toHaveBeenCalledWith('auth.refresh.reuse_detected', {
+        userId: 'u1',
+        note: 'all sessions revoked',
+      });
+    });
+
+    it('unknown refresh token logs auth.refresh.rejected with reason unknown', async () => {
+      const repo = moduleRef.get(getRepositoryToken(RefreshToken)) as any;
+      repo.findOne = jest.fn(async () => null) as any;
+      await expect(service.rotate('raw', async () => user)).rejects.toThrow('Unauthorized');
+      expect(logger.warn).toHaveBeenCalledWith('auth.refresh.rejected', { reason: 'unknown' });
     });
 
     it('throws 401 when the token is expired', async () => {

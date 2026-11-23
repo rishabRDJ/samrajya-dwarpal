@@ -30,7 +30,9 @@ function makeUserRow(overrides: Partial<any> = {}) {
 
 describe('AdminUsersController', () => {
   const admin: AuthenticatedUser = { id: 'admin-1', role: UserRole.ADMIN };
-  let service: jest.Mocked<Pick<AdminUsersService, 'list' | 'setRole' | 'softDelete' | 'restore'>>;
+  let service: jest.Mocked<
+    Pick<AdminUsersService, 'list' | 'setRole' | 'softDelete' | 'restore'>
+  >;
   let controller: AdminUsersController;
 
   beforeEach(() => {
@@ -40,21 +42,31 @@ describe('AdminUsersController', () => {
       softDelete: jest.fn(),
       restore: jest.fn(),
     };
-    controller = new AdminUsersController(service as unknown as AdminUsersService);
+    controller = new AdminUsersController(
+      service as unknown as AdminUsersService,
+    );
   });
 
-  it('GET /admin/users forwards the query DTO to the service', async () => {
+  it('GET /admin/users forwards actor id + query DTO to the service', async () => {
     service.list.mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 });
     const q: any = { page: 1, limit: 20, status: UserListStatus.ACTIVE };
-    const out = await controller.list(q);
-    expect(service.list).toHaveBeenCalledWith(q);
+    const out = await controller.list(admin, q);
+    expect(service.list).toHaveBeenCalledWith('admin-1', q);
     expect(out.total).toBe(0);
   });
 
   it('PATCH /admin/users/:id/role forwards actor + target + role, maps to UserResponseDto', async () => {
-    service.setRole.mockResolvedValue(makeUserRow({ role: UserRole.ADMIN }) as any);
-    const out = await controller.setRole(admin, 'target-id', { role: UserRole.ADMIN });
-    expect(service.setRole).toHaveBeenCalledWith('admin-1', 'target-id', UserRole.ADMIN);
+    service.setRole.mockResolvedValue(
+      makeUserRow({ role: UserRole.ADMIN }) as any,
+    );
+    const out = await controller.setRole(admin, 'target-id', {
+      role: UserRole.ADMIN,
+    });
+    expect(service.setRole).toHaveBeenCalledWith(
+      'admin-1',
+      'target-id',
+      UserRole.ADMIN,
+    );
     expect(out.role).toBe(UserRole.ADMIN);
     expect(out).not.toHaveProperty('passwordHash');
   });
