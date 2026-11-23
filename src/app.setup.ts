@@ -1,10 +1,15 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+// Single source of truth for global app configuration. main.ts and e2e tests
+// both call this, so tests cannot drift from production config.
 export function setupApp(app: INestApplication): void {
-  // /v1 prefix for every route except /health (monitors should not track
-  // the API version).
-  app.setGlobalPrefix('v1', { exclude: ['health'] });
+  // URI versioning in place of setGlobalPrefix('v1'). Default version is '1',
+  // so an unversioned controller handler lives at /v1/<path>. A future /v2
+  // controller slots in next to the current one without touching this setup.
+  // Routes that opt out with @Version(VERSION_NEUTRAL) stay unversioned
+  // (used for /health so monitoring stays stable across API versions).
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
   // whitelist: strip properties not on the DTO.
   // forbidNonWhitelisted: 400 on unknown fields (louder than silent strip).
