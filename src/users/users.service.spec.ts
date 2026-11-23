@@ -5,7 +5,7 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
-import { QueryFailedError } from 'typeorm';
+import { IsNull, QueryFailedError } from 'typeorm';
 import { User, UserRole } from './user.entity.js';
 import { UsersService } from './users.service.js';
 
@@ -170,19 +170,27 @@ describe('UsersService', () => {
   });
 
   describe('updatePasswordHash', () => {
-    it('compare-and-set: WHERE includes id AND the expected current hash, SET swaps + stamps', async () => {
+    it('compare-and-set: WHERE includes id, expected current hash, AND deletedAt IS NULL', async () => {
       repoMock.update = jest.fn(async () => ({ affected: 1 }));
       const ok = await service.updatePasswordHash('u1', 'oldhash', 'newhash');
       expect(ok).toBe(true);
       expect(repoMock.update).toHaveBeenCalledWith(
-        { id: 'u1', passwordHash: 'oldhash' },
+        { id: 'u1', passwordHash: 'oldhash', deletedAt: IsNull() },
         { passwordHash: 'newhash', lastUpdatedBy: 'u1' },
       );
     });
 
-    it('returns false when nothing matched (row was mutated under us)', async () => {
+    it('returns false when the hash was mutated under us (lost race)', async () => {
       repoMock.update = jest.fn(async () => ({ affected: 0 }));
       const ok = await service.updatePasswordHash('u1', 'staleOldHash', 'newhash');
+      expect(ok).toBe(false);
+    });
+
+    it('returns false when the user was soft-deleted during the argon2 hash window', async () => {
+      // Row still has id=u1 and passwordHash=oldhash, but deletedAt is now set.
+      // The deletedAt IS NULL clause in the WHERE makes affected=0 here.
+      repoMock.update = jest.fn(async () => ({ affected: 0 }));
+      const ok = await service.updatePasswordHash('u1', 'oldhash', 'newhash');
       expect(ok).toBe(false);
     });
 
@@ -192,7 +200,7 @@ describe('UsersService', () => {
       await service.updatePasswordHash('u1', 'oldhash', 'newhash', manager);
       expect(manager.getRepository).toHaveBeenCalled();
       expect(managerRepo.update).toHaveBeenCalledWith(
-        { id: 'u1', passwordHash: 'oldhash' },
+        { id: 'u1', passwordHash: 'oldhash', deletedAt: IsNull() },
         { passwordHash: 'newhash', lastUpdatedBy: 'u1' },
       );
       // Default repo must NOT be touched when a manager is supplied.

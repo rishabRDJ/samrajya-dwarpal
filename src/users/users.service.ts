@@ -116,12 +116,15 @@ export class UsersService {
       : null;
   }
 
-  // Compare-and-set password update. `expectedCurrentHash` becomes part of
-  // the WHERE so a concurrent write — another /me/password tab, a future
-  // admin password-reset, anything that mutates the row between our verify
-  // and our UPDATE — is detected: result.affected === 0 means the row no
-  // longer matches what we verified, and we must NOT overwrite it blindly.
-  // Returns true on a successful swap, false on a losing race.
+  // Compare-and-set password update. `expectedCurrentHash` AND
+  // `deletedAt IS NULL` both become part of the WHERE so EVERY kind of
+  // concurrent mutation is detected:
+  //   * another /me/password tab swapped the hash → WHERE's hash misses
+  //   * an admin soft-deleted the user mid-argon2 → WHERE's deletedAt misses
+  //   * a future admin password-reset ran → WHERE's hash misses
+  // In every case result.affected === 0 → return false → the caller turns
+  // it into a 409 and refuses to issue fresh tokens for a row that no
+  // longer matches what we verified.
   async updatePasswordHash(
     userId: string,
     expectedCurrentHash: string,
@@ -130,7 +133,7 @@ export class UsersService {
   ): Promise<boolean> {
     const repo = manager ? manager.getRepository(User) : this.users;
     const result = await repo.update(
-      { id: userId, passwordHash: expectedCurrentHash },
+      { id: userId, passwordHash: expectedCurrentHash, deletedAt: IsNull() },
       { passwordHash: newHash, lastUpdatedBy: userId },
     );
     return (result.affected ?? 0) === 1;

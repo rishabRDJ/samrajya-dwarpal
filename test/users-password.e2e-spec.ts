@@ -185,4 +185,37 @@ describe('Password change (e2e)', () => {
       .send({ currentPassword: PASSWORD, newPassword: PASSWORD })
       .expect(400);
   });
+
+  it('refuses to change the password of a user soft-deleted after login (compare-and-set includes deletedAt)', async () => {
+    const user = await seedUser();
+    const { access } = await loginPair();
+
+    // Admin soft-deletes the user behind the scenes while their JWT is
+    // still valid. The compare-and-set in updatePasswordHash must notice
+    // via its `deletedAt IS NULL` clause and refuse the swap.
+    await usersRepo.softDelete({ id: user.id });
+
+    const res = await request(app.getHttpServer())
+      .post('/v1/users/me/password')
+      .set('Authorization', `Bearer ${access}`)
+      .send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD });
+
+    // Current behavior: the DB read (getPasswordContext) filters deletedAt,
+    // so it returns null → 401. If that early check is ever relaxed, the
+    // compare-and-set is the defense-in-depth that still prevents a write.
+    expect([401, 409]).toContain(res.status);
+
+    // The stored hash must be unchanged: neither the old password check
+    // nor the new one passed through. Verify by attempting a login (would
+    // also fail with 401 because of the soft-delete, so we check the
+    // hash directly).
+    const stored = await usersRepo.findOne({
+      where: { id: user.id },
+      withDeleted: true,
+      select: { id: true, passwordHash: true },
+    });
+    expect(stored).not.toBeNull();
+    expect(await argon2.verify(stored!.passwordHash, PASSWORD)).toBe(true);
+    expect(await argon2.verify(stored!.passwordHash, NEW_PASSWORD)).toBe(false);
+  });
 });
