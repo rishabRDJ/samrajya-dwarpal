@@ -1,5 +1,5 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 
 // Single source of truth for global app configuration. main.ts and e2e tests
 // both call this, so tests cannot drift from production config.
@@ -24,6 +24,27 @@ export function setupApp(app: INestApplication): void {
   );
 }
 
+// Builds the OpenAPI document for this service. Factored out so BOTH the
+// HTTP /docs mount (setupSwagger below) and the on-disk dump script
+// (src/scripts/dump-openapi.ts) produce identical output — any difference
+// between what the running app serves and the committed docs/openapi.yml
+// means a drift that needs looking at.
+export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
+  const config = new DocumentBuilder()
+    .setTitle('Samrajya Dwarpal')
+    .setDescription('Users and authentication service for Project Samrajya')
+    .setVersion('1.0')
+    .addBearerAuth()
+    // Unconditional server list so tooling (Postman import, OpenAPI code
+    // generators) can target any env from the same committed YAML. Order
+    // matters: Swagger UI defaults to the first entry.
+    .addServer('http://localhost:3000', 'Local')
+    .addServer('https://preview.samrajya-dwarpal.example', 'Preview')
+    .addServer('https://api.samrajya-dwarpal.example', 'Production')
+    .build();
+  return SwaggerModule.createDocument(app, config);
+}
+
 // Swagger is separated because e2e tests do not need the /docs endpoint
 // mounted; keeping it out of setupApp speeds up test boots.
 //
@@ -33,19 +54,13 @@ export function setupApp(app: INestApplication): void {
 // read the full OpenAPI document at /docs-json. Preview and local keep
 // Try it out so the owner can click through from either place.
 export function setupSwagger(app: INestApplication, appEnv: string): void {
-  const openApi = new DocumentBuilder()
-    .setTitle('Samrajya Dwarpal')
-    .setDescription('Users and authentication service for Project Samrajya')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
   const swaggerOptions = appEnv === 'production'
     ? { swaggerOptions: { supportedSubmitMethods: [] as string[] } }
     : undefined;
   SwaggerModule.setup(
     'docs',
     app,
-    () => SwaggerModule.createDocument(app, openApi),
+    () => buildOpenApiDocument(app),
     swaggerOptions,
   );
 }

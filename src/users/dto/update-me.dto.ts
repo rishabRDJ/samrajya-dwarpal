@@ -23,6 +23,9 @@ export class UpdateMeDto {
   // on `null` only up to "is it null" and then stops — not forward through
   // @IsString.
   @ApiProperty({
+    // Explicit `type` because the TS union `string | null` reflects as
+    // Object and the generated spec would otherwise emit `type: object`.
+    type: 'string',
     required: false,
     nullable: true,
     example: '9876543210',

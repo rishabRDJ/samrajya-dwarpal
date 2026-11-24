@@ -29,7 +29,8 @@
     "migration:up": "npm run build && node dist/scripts/migrate.js",
     "migration:down": "npm run build && npm run typeorm -- migration:revert -d dist/data-source.js",
     "migration:show": "npm run build && npm run typeorm -- migration:show -d dist/data-source.js",
-    "migration:deploy": "npm run typeorm -- migration:run -d dist/data-source.js"
+    "migration:deploy": "npm run typeorm -- migration:run -d dist/data-source.js",
+    "openapi:dump": "npm run build && node dist/scripts/dump-openapi.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -63,11 +64,13 @@
     "@nestjs/testing": "^12.0.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^7.0.0",
     "eslint": "^9.39.5",
     "jest": "^30.5.2",
+    "js-yaml": "^5.5.0",
     "nyc": "^18.0.0",
     "oxlint": "^1.58.0",
     "oxlint-tsgolint": "^7.0.2001",

@@ -20,7 +20,7 @@ export class UserResponseDto {
   @ApiProperty({ example: 'Jaiswal' })
   lastName: string;
 
-  @ApiProperty({ example: null, nullable: true })
+  @ApiProperty({ type: String, example: null, nullable: true })
   phoneNumber: string | null;
 
   @ApiProperty({ enum: UserRole, example: UserRole.USER })
