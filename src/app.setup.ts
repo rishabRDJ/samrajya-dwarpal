@@ -26,14 +26,26 @@ export function setupApp(app: INestApplication): void {
 
 // Swagger is separated because e2e tests do not need the /docs endpoint
 // mounted; keeping it out of setupApp speeds up test boots.
-export function setupSwagger(app: INestApplication): void {
+//
+// The UI stays public in every env (the owner's CV links to it). In
+// production the "Try it out" button is disabled so an anonymous visitor
+// cannot fire live requests from the docs page itself — they can still
+// read the full OpenAPI document at /docs-json. Preview and local keep
+// Try it out so the owner can click through from either place.
+export function setupSwagger(app: INestApplication, appEnv: string): void {
   const openApi = new DocumentBuilder()
     .setTitle('Samrajya Dwarpal')
     .setDescription('Users and authentication service for Project Samrajya')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
-  SwaggerModule.setup('docs', app, () =>
-    SwaggerModule.createDocument(app, openApi),
+  const swaggerOptions = appEnv === 'production'
+    ? { swaggerOptions: { supportedSubmitMethods: [] as string[] } }
+    : undefined;
+  SwaggerModule.setup(
+    'docs',
+    app,
+    () => SwaggerModule.createDocument(app, openApi),
+    swaggerOptions,
   );
 }
