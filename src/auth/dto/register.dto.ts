@@ -7,8 +7,12 @@ import {
   Length,
   Matches,
   MaxLength,
-  MinLength,
 } from 'class-validator';
+import {
+  IsPassword,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+} from '../../common/validation/password.js';
 
 // Username character set: letters, digits, dot, underscore, hyphen. The `@`
 // symbol is deliberately excluded so /auth/login can disambiguate email vs.
@@ -17,6 +21,7 @@ const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/;
 
 // Trims then lowercases. Transforms run BEFORE class-validator rules, so
 // validation sees the canonical form and the DB write receives it too.
+// Replaced by @TrimLower() in step 2 of this PR.
 const normalize = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
@@ -55,12 +60,10 @@ export class RegisterDto {
 
   @ApiProperty({
     description: 'Argon2id-hashed on the server. Never stored or logged raw.',
-    minLength: 8,
-    maxLength: 128,
+    minLength: PASSWORD_MIN,
+    maxLength: PASSWORD_MAX,
   })
-  @IsString()
-  @MinLength(8)
-  @MaxLength(128)
+  @IsPassword()
   password: string;
 
   @ApiProperty({
