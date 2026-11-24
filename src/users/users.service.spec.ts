@@ -155,11 +155,11 @@ describe('UsersService', () => {
         id: 'u1',
         firstName: 'Changed',
         lastName: 'X',
-        phoneNumber: '+919876543210',
+        phoneNumber: '9876543210',
       });
       await service.updateProfile('u1', {
         firstName: 'Changed',
-        phoneNumber: '+919876543210',
+        phoneNumber: '9876543210',
       });
 
       // The info-level success line.
@@ -174,7 +174,7 @@ describe('UsersService', () => {
       expect(payload.fields).not.toEqual(expect.arrayContaining(['lastName']));
       // Values must never appear anywhere in the log call.
       expect(JSON.stringify(payload)).not.toContain('Changed');
-      expect(JSON.stringify(payload)).not.toContain('+919876543210');
+      expect(JSON.stringify(payload)).not.toContain('9876543210');
     });
 
     it('updateProfile with no fields emits user.profile.update_failed reason no_fields', async () => {
@@ -192,7 +192,7 @@ describe('UsersService', () => {
         throw dup;
       });
       await expect(
-        service.updateProfile('u1', { phoneNumber: '+919876543210' }),
+        service.updateProfile('u1', { phoneNumber: '9876543210' }),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(logger.warn).toHaveBeenCalledWith('user.profile.update_failed', {
         userId: 'u1',
@@ -314,7 +314,7 @@ describe('UsersService', () => {
         id: 'u1',
         firstName: 'New',
         lastName: 'Name',
-        phoneNumber: '+919876543210',
+        phoneNumber: '9876543210',
       });
     });
 
@@ -347,7 +347,7 @@ describe('UsersService', () => {
         throw dup;
       });
       await expect(
-        service.updateProfile('u1', { phoneNumber: '+919876543210' }),
+        service.updateProfile('u1', { phoneNumber: '9876543210' }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 

@@ -62,13 +62,13 @@ describe('UsersController', () => {
       const out = await controller.update(authed, {
         firstName: 'Changed',
         // lastName intentionally omitted so we prove undefined is forwarded as undefined
-        phoneNumber: '+919876543210',
+        phoneNumber: '9876543210',
       } as any);
 
       expect(service.updateProfile).toHaveBeenCalledWith('u1', {
         firstName: 'Changed',
         lastName: undefined,
-        phoneNumber: '+919876543210',
+        phoneNumber: '9876543210',
       });
       expect(out.firstName).toBe('Changed');
     });

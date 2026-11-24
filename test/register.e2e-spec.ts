@@ -135,6 +135,41 @@ describe('Register + Availability (e2e)', () => {
         .send({ ...body(), role: 'admin' })
         .expect(400);
     });
+
+    it('accepts a 10-digit Indian mobile phoneNumber', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '9876543210' }))
+        .expect(201);
+    });
+
+    it('400s when phoneNumber is an E.164 value with country code', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '+919876543210' }))
+        .expect(400);
+    });
+
+    it('400s when phoneNumber starts with a non-mobile prefix (5)', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '5876543210' }))
+        .expect(400);
+    });
+
+    it('400s when phoneNumber is too short', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '987654321' }))
+        .expect(400);
+    });
+
+    it('400s when phoneNumber has embedded whitespace', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '98765 43210' }))
+        .expect(400);
+    });
   });
 
   describe('GET /v1/auth/availability', () => {

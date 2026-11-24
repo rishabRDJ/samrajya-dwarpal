@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsString, Length, Matches, MaxLength, ValidateIf } from 'class-validator';
-import { TrimLower } from '../../common/validation/trim-lower.decorator.js';
+import { TrimLower } from '../../common/validation/transforms.js';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/;
 

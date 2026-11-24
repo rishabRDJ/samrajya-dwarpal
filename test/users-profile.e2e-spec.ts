@@ -165,12 +165,12 @@ describe('Users profile (e2e)', () => {
       await request(app.getHttpServer())
         .patch('/v1/users/me')
         .set('Authorization', `Bearer ${token}`)
-        .send({ phoneNumber: '919876543210' }) // missing leading +
+        .send({ phoneNumber: '+919876543210' }) // E.164 form is no longer accepted
         .expect(400);
     });
 
     it('accepts null phoneNumber to clear the stored value', async () => {
-      const user = await seedUser({ phoneNumber: '+919876543210' });
+      const user = await seedUser({ phoneNumber: '9876543210' });
       const token = await login();
 
       await request(app.getHttpServer())
@@ -193,7 +193,7 @@ describe('Users profile (e2e)', () => {
           emailAddress: OTHER_EMAIL,
           firstName: 'Other',
           lastName: 'User',
-          phoneNumber: '+919876543210',
+          phoneNumber: '9876543210',
           passwordHash: otherHash,
           role: UserRole.USER,
         }),
@@ -203,7 +203,7 @@ describe('Users profile (e2e)', () => {
       await request(app.getHttpServer())
         .patch('/v1/users/me')
         .set('Authorization', `Bearer ${token}`)
-        .send({ phoneNumber: '+919876543210' })
+        .send({ phoneNumber: '9876543210' })
         .expect(409);
     });
   });

@@ -12,8 +12,11 @@ import {
   PASSWORD_MAX,
   PASSWORD_MIN,
 } from '../../common/validation/password.js';
-import { Trim } from '../../common/validation/trim.decorator.js';
-import { TrimLower } from '../../common/validation/trim-lower.decorator.js';
+import {
+  IsIndianMobile,
+  PHONE_REGEX,
+} from '../../common/validation/phone.js';
+import { Trim, TrimLower } from '../../common/validation/transforms.js';
 
 // Username character set: letters, digits, dot, underscore, hyphen. The `@`
 // symbol is deliberately excluded so /auth/login can disambiguate email vs.
@@ -65,12 +68,13 @@ export class RegisterDto {
 
   @ApiProperty({
     required: false,
-    maxLength: 20,
-    example: null,
-    nullable: true,
+    example: '9876543210',
+    pattern: PHONE_REGEX.source,
+    description:
+      '10-digit Indian mobile number; must be unique.',
   })
   @IsOptional()
   @IsString()
-  @MaxLength(10)
+  @IsIndianMobile()
   phoneNumber?: string;
 }

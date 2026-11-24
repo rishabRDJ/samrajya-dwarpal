@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 import { PASSWORD_MAX } from '../../common/validation/password.js';
-import { TrimLower } from '../../common/validation/trim-lower.decorator.js';
+import { TrimLower } from '../../common/validation/transforms.js';
 
 export class LoginDto {
   @ApiProperty({
