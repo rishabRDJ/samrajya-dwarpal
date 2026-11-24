@@ -101,6 +101,15 @@ describe('Auth (e2e)', () => {
     expect(new Date(res.body.refreshTokenExpiresAt).getTime()).toBeGreaterThan(Date.now());
   });
 
+  it('logs in with a messy-cased, whitespace-padded identifier (TrimLower)', async () => {
+    await seedUser();
+    const res = await request(app.getHttpServer())
+      .post('/v1/auth/login')
+      .send({ identifier: '  E2E-AUTH@Test.LOCAL  ', password: PASSWORD })
+      .expect(200);
+    expect(res.body.accessToken).toBeDefined();
+  });
+
   it('logs in with username too', async () => {
     await seedUser();
     const res = await request(app.getHttpServer())

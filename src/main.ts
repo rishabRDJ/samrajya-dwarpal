@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
@@ -10,7 +11,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
   setupApp(app);
-  setupSwagger(app);
+  // APP_ENV is validated at boot (src/env.validation.ts); read it here to
+  // tell Swagger whether to disable Try it out (production only).
+  const appEnv = app.get(ConfigService).getOrThrow<string>('APP_ENV');
+  setupSwagger(app, appEnv);
   await app.listen(process.env.PORT ?? 3000);
 }
 await bootstrap();

@@ -99,20 +99,43 @@ describe('Register + Availability (e2e)', () => {
       expect(row?.emailAddress).toBe(EMAIL);
     });
 
-    it('409s on duplicate username even with different case', async () => {
+    it('409s on duplicate username with conflictField username', async () => {
       await request(app.getHttpServer()).post('/v1/auth/register').send(body()).expect(201);
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .post('/v1/auth/register')
         .send(body({ username: USERNAME.toUpperCase(), emailAddress: 'other.e2e@test.local' }))
         .expect(409);
+      expect(res.body.conflictField).toBe('username');
+      expect(res.body.message).toBe('username already in use');
     });
 
-    it('409s on duplicate email', async () => {
+    it('409s on duplicate email with conflictField emailAddress', async () => {
       await request(app.getHttpServer()).post('/v1/auth/register').send(body()).expect(201);
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .post('/v1/auth/register')
         .send(body({ username: 'otheruser_e2e' }))
         .expect(409);
+      expect(res.body.conflictField).toBe('emailAddress');
+      expect(res.body.message).toBe('emailAddress already in use');
+    });
+
+    it('409s on duplicate phoneNumber with conflictField phoneNumber', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '9876543210' }))
+        .expect(201);
+      const res = await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(
+          body({
+            username: 'otheruser_phone_e2e',
+            emailAddress: 'other.phone.e2e@test.local',
+            phoneNumber: '9876543210',
+          }),
+        )
+        .expect(409);
+      expect(res.body.conflictField).toBe('phoneNumber');
+      expect(res.body.message).toBe('phoneNumber already in use');
     });
 
     it('400s when username contains @', async () => {
@@ -133,6 +156,41 @@ describe('Register + Availability (e2e)', () => {
       await request(app.getHttpServer())
         .post('/v1/auth/register')
         .send({ ...body(), role: 'admin' })
+        .expect(400);
+    });
+
+    it('accepts a 10-digit Indian mobile phoneNumber', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '9876543210' }))
+        .expect(201);
+    });
+
+    it('400s when phoneNumber is an E.164 value with country code', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '+919876543210' }))
+        .expect(400);
+    });
+
+    it('400s when phoneNumber starts with a non-mobile prefix (5)', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '5876543210' }))
+        .expect(400);
+    });
+
+    it('400s when phoneNumber is too short', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '987654321' }))
+        .expect(400);
+    });
+
+    it('400s when phoneNumber has embedded whitespace', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body({ phoneNumber: '98765 43210' }))
         .expect(400);
     });
   });

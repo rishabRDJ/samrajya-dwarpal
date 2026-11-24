@@ -1,23 +1,36 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsPassword,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+} from '../../common/validation/password.js';
 
-// POST /v1/users/me/password body. Current password is a plain string (any
-// length) because we're only going to argon2.verify it — the storage format
-// already guarantees length/entropy. New password enforces the same floor as
-// RegisterDto (12 chars) and a sane upper bound so a one-megabyte payload
-// cannot pin a CPU on argon2 hashing.
+// POST /v1/users/me/password body.
+//
+// currentPassword: any non-empty string up to PASSWORD_MAX — it's only
+// ever passed to argon2.verify. The real length floor is the stored hash,
+// not a DTO check. The upper bound protects CPU from a megabyte payload.
+//
+// newPassword: enforces the shared password rules (@IsPassword) so register
+// and password-change can never disagree on what a valid password looks
+// like.
 export class ChangePasswordDto {
-  @ApiProperty({ example: 'current password here' })
+  @ApiProperty({
+    example: 'current password here',
+    minLength: 1,
+    maxLength: PASSWORD_MAX,
+  })
   @IsString()
+  @MinLength(1)
+  @MaxLength(PASSWORD_MAX)
   currentPassword: string;
 
   @ApiProperty({
     example: 'a new sufficiently long password',
-    minLength: 8,
-    maxLength: 128,
+    minLength: PASSWORD_MIN,
+    maxLength: PASSWORD_MAX,
   })
-  @IsString()
-  @MinLength(8)
-  @MaxLength(128)
+  @IsPassword()
   newPassword: string;
 }

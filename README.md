@@ -35,6 +35,10 @@ npm install
 npm run start:dev
 \`\`\`
 
+## API docs
+
+`GET /docs` serves Swagger UI and `GET /docs-json` serves the raw OpenAPI document. Both are public so the docs can be linked from a CV. In the production env the "Try it out" button is disabled (`supportedSubmitMethods: []`) so anonymous visitors can't fire requests from the docs page — share the **preview** URL if you want readers to be able to try endpoints interactively.
+
 ## Logging
 
 Dwarpal emits one-line JSON logs via [nestjs-pino](https://github.com/iamolegga/nestjs-pino). Every line carries a fixed set of base fields plus event-specific details, so the three Samrajya services (Dwarpal, Diwan, Darbar) can be searched together by `service`, `env` and `reqId`.
