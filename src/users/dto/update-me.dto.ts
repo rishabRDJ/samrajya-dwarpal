@@ -1,20 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
+import { Trim } from '../../common/validation/trim.decorator.js';
 
 // E.164: a leading '+', then a non-zero digit, then up to 14 more digits.
 // Max 15 total digits is the ITU spec. Matches '+919876543210', rejects
 // '919876543210' (no +), '+0...' (leading zero), '+9...-...' (punctuation).
+// Replaced by @IsIndianMobile() in step 3 of this PR.
 const E164 = /^\+[1-9]\d{1,14}$/;
 
 export class UpdateMeDto {
   @ApiProperty({ required: false, minLength: 1, maxLength: 100, example: 'Rishab' })
   @IsOptional()
+  @Trim()
   @IsString()
   @Length(1, 100)
   firstName?: string;
 
   @ApiProperty({ required: false, minLength: 1, maxLength: 100, example: 'Jaiswal' })
   @IsOptional()
+  @Trim()
   @IsString()
   @Length(1, 100)
   lastName?: string;

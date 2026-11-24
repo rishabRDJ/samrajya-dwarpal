@@ -1,11 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
 import { IsEmail, IsString, Length, Matches, MaxLength, ValidateIf } from 'class-validator';
+import { TrimLower } from '../../common/validation/trim-lower.decorator.js';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/;
-
-const normalize = ({ value }: { value: unknown }): unknown =>
-  typeof value === 'string' ? value.trim().toLowerCase() : value;
 
 // Exactly one of username or emailAddress is required. @ValidateIf on each
 // field says "only run my validators when the OTHER field is missing," so:
@@ -17,7 +14,7 @@ const normalize = ({ value }: { value: unknown }): unknown =>
 // check when a field is undefined and let empty queries through.
 export class AvailabilityQueryDto {
   @ApiPropertyOptional({ example: 'rishab', minLength: 3, maxLength: 30 })
-  @Transform(normalize)
+  @TrimLower()
   @ValidateIf((o) => !o.emailAddress)
   @IsString()
   @Length(3, 30)
@@ -27,7 +24,7 @@ export class AvailabilityQueryDto {
   username?: string;
 
   @ApiPropertyOptional({ example: 'rishab@example.com', maxLength: 255 })
-  @Transform(normalize)
+  @TrimLower()
   @ValidateIf((o) => !o.username)
   @IsEmail()
   @MaxLength(255)

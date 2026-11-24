@@ -1,13 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 import { PASSWORD_MAX } from '../../common/validation/password.js';
+import { TrimLower } from '../../common/validation/trim-lower.decorator.js';
 
 export class LoginDto {
   @ApiProperty({
-    description: 'Email address or username',
+    description: 'Email address or username. Trimmed and lowercased.',
     example: 'rishab@example.com',
     maxLength: 255,
   })
+  @TrimLower()
   @IsString()
   @MinLength(1)
   @MaxLength(255)

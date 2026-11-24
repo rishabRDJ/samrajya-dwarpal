@@ -1,5 +1,4 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsOptional,
@@ -13,27 +12,23 @@ import {
   PASSWORD_MAX,
   PASSWORD_MIN,
 } from '../../common/validation/password.js';
+import { Trim } from '../../common/validation/trim.decorator.js';
+import { TrimLower } from '../../common/validation/trim-lower.decorator.js';
 
 // Username character set: letters, digits, dot, underscore, hyphen. The `@`
 // symbol is deliberately excluded so /auth/login can disambiguate email vs.
 // username by the presence of `@`.
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/;
 
-// Trims then lowercases. Transforms run BEFORE class-validator rules, so
-// validation sees the canonical form and the DB write receives it too.
-// Replaced by @TrimLower() in step 2 of this PR.
-const normalize = ({ value }: { value: unknown }): unknown =>
-  typeof value === 'string' ? value.trim().toLowerCase() : value;
-
 export class RegisterDto {
   @ApiProperty({
     description:
-      'Letters, digits, dot, underscore, hyphen. Lowercased on save.',
+      'Letters, digits, dot, underscore, hyphen. Trimmed and lowercased on save.',
     example: 'rishab.jaiswal',
     minLength: 3,
     maxLength: 30,
   })
-  @Transform(normalize)
+  @TrimLower()
   @IsString()
   @Length(3, 30)
   @Matches(USERNAME_REGEX, {
@@ -43,17 +38,19 @@ export class RegisterDto {
   username: string;
 
   @ApiProperty({ example: 'rishab@example.com', maxLength: 255 })
-  @Transform(normalize)
+  @TrimLower()
   @IsEmail()
   @MaxLength(255)
   emailAddress: string;
 
   @ApiProperty({ example: 'Rishab', maxLength: 100 })
+  @Trim()
   @IsString()
   @Length(1, 100)
   firstName: string;
 
   @ApiProperty({ example: 'Jaiswal', maxLength: 100 })
+  @Trim()
   @IsString()
   @Length(1, 100)
   lastName: string;
