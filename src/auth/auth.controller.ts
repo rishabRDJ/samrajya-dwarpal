@@ -83,7 +83,8 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Validation error' })
   @ApiResponse({
     status: 409,
-    description: 'username or email address already in use',
+    description:
+      'Field already taken. body.conflictField names the field: "username" | "emailAddress" | "phoneNumber".',
   })
   async register(@Body() dto: RegisterDto): Promise<UserResponseDto> {
     const user = await this.users.register({

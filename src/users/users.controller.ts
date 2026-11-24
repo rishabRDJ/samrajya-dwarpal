@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Patch } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/jwt.strategy.js';
 import { UpdateMeDto } from './dto/update-me.dto.js';
@@ -28,6 +28,13 @@ export class UsersController {
   @Patch('me')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update the authenticated user profile' })
+  @ApiResponse({ status: 200, type: UserResponseDto })
+  @ApiResponse({ status: 400, description: 'Empty body, unknown field or invalid value' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'phoneNumber already in use; body.conflictField is "phoneNumber".',
+  })
   async update(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateMeDto,

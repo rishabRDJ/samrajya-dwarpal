@@ -130,9 +130,13 @@ describe('UsersService', () => {
       expect(logger.info).toHaveBeenCalledWith('auth.register.succeeded', { userId: 'new-id' });
     });
 
-    it('register duplicate emits auth.register.conflict (no fields)', async () => {
+    it('register duplicate emits auth.register.conflict with conflictField and no value', async () => {
       const dup = new QueryFailedError('q', [], new Error('dup'));
-      (dup as any).driverError = { code: 'ER_DUP_ENTRY' };
+      (dup as any).driverError = {
+        code: 'ER_DUP_ENTRY',
+        sqlMessage:
+          "Duplicate entry 'rishab' for key 'UQ_users_username'",
+      };
       repoMock.create = jest.fn((v: any) => v);
       repoMock.save = jest.fn(async () => {
         throw dup;
@@ -146,7 +150,33 @@ describe('UsersService', () => {
           password: 'correct horse battery staple',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
-      expect(logger.warn).toHaveBeenCalledWith('auth.register.conflict');
+      // The log line names the field but NEVER its value.
+      expect(logger.warn).toHaveBeenCalledWith('auth.register.conflict', {
+        conflictField: 'username',
+      });
+      const logged = JSON.stringify(logger.warn.mock.calls);
+      expect(logged).not.toContain('rishab');
+    });
+
+    it('register with an unrecognised duplicate-key index rethrows the original error (500, not 409)', async () => {
+      const dup = new QueryFailedError('q', [], new Error('dup'));
+      (dup as any).driverError = {
+        code: 'ER_DUP_ENTRY',
+        sqlMessage: "Duplicate entry 'x' for key 'UQ_users_something_new'",
+      };
+      repoMock.create = jest.fn((v: any) => v);
+      repoMock.save = jest.fn(async () => {
+        throw dup;
+      });
+      await expect(
+        service.register({
+          username: 'rishab',
+          emailAddress: 'r@example.com',
+          firstName: 'R',
+          lastName: 'J',
+          password: 'correct horse battery staple',
+        }),
+      ).rejects.toBe(dup);
     });
 
     it('updateProfile logs only the NAMES of changed fields, not values', async () => {
@@ -185,9 +215,13 @@ describe('UsersService', () => {
       });
     });
 
-    it('updateProfile with duplicate phone emits user.profile.update_failed reason duplicate_phone', async () => {
+    it('updateProfile with duplicate phone emits user.profile.update_failed with reason duplicate + conflictField phoneNumber', async () => {
       const dup = new QueryFailedError('q', [], new Error('dup'));
-      (dup as any).driverError = { code: 'ER_DUP_ENTRY' };
+      (dup as any).driverError = {
+        code: 'ER_DUP_ENTRY',
+        sqlMessage:
+          "Duplicate entry '9876543210' for key 'UQ_users_phoneNumber'",
+      };
       repoMock.update = jest.fn(async () => {
         throw dup;
       });
@@ -196,7 +230,8 @@ describe('UsersService', () => {
       ).rejects.toBeInstanceOf(ConflictException);
       expect(logger.warn).toHaveBeenCalledWith('user.profile.update_failed', {
         userId: 'u1',
-        reason: 'duplicate_phone',
+        reason: 'duplicate',
+        conflictField: 'phoneNumber',
       });
     });
   });
@@ -226,13 +261,24 @@ describe('UsersService', () => {
       expect(result.id).toBe('new-id');
     });
 
-    it('translates a MySQL duplicate-key error into 409 ConflictException', async () => {
+    it('translates a MySQL duplicate-key error into a field-specific 409 ConflictException', async () => {
       const dup = new QueryFailedError('q', [], new Error('dup'));
-      (dup as any).driverError = { code: 'ER_DUP_ENTRY' };
+      (dup as any).driverError = {
+        code: 'ER_DUP_ENTRY',
+        sqlMessage:
+          "Duplicate entry 'r@example.com' for key 'UQ_users_emailAddress'",
+      };
       repoMock.save = jest.fn(async () => {
         throw dup;
       });
-      await expect(service.register(input)).rejects.toBeInstanceOf(ConflictException);
+      const err = await service.register(input).catch((e) => e);
+      expect(err).toBeInstanceOf(ConflictException);
+      const body = (err as ConflictException).getResponse() as {
+        message: string;
+        conflictField: string;
+      };
+      expect(body.conflictField).toBe('emailAddress');
+      expect(body.message).toBe('emailAddress already in use');
     });
 
     it('rethrows unexpected database errors as-is', async () => {
@@ -340,15 +386,24 @@ describe('UsersService', () => {
       expect(repoMock.update).not.toHaveBeenCalled();
     });
 
-    it('maps a MySQL duplicate-key error into 409', async () => {
+    it('maps a MySQL duplicate-key error into a field-specific 409', async () => {
       const dup = new QueryFailedError('q', [], new Error('dup'));
-      (dup as any).driverError = { code: 'ER_DUP_ENTRY' };
+      (dup as any).driverError = {
+        code: 'ER_DUP_ENTRY',
+        sqlMessage:
+          "Duplicate entry '9876543210' for key 'UQ_users_phoneNumber'",
+      };
       repoMock.update = jest.fn(async () => {
         throw dup;
       });
-      await expect(
-        service.updateProfile('u1', { phoneNumber: '9876543210' }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      const err = await service
+        .updateProfile('u1', { phoneNumber: '9876543210' })
+        .catch((e) => e);
+      expect(err).toBeInstanceOf(ConflictException);
+      const body = (err as ConflictException).getResponse() as {
+        conflictField: string;
+      };
+      expect(body.conflictField).toBe('phoneNumber');
     });
 
     it('rethrows unexpected database errors as-is', async () => {

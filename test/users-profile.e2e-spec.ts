@@ -200,11 +200,13 @@ describe('Users profile (e2e)', () => {
       );
       const token = await login();
 
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .patch('/v1/users/me')
         .set('Authorization', `Bearer ${token}`)
         .send({ phoneNumber: '9876543210' })
         .expect(409);
+      expect(res.body.conflictField).toBe('phoneNumber');
+      expect(res.body.message).toBe('phoneNumber already in use');
     });
   });
 });

@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
-import { EntityManager, IsNull, QueryFailedError, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
+import {
+  conflictFieldFrom,
+  type ConflictField,
+} from '../common/errors/duplicate-key.js';
 import { ScopedLogger } from '../common/logging/scoped-logger.js';
 import { User, UserRole } from './user.entity.js';
 
@@ -35,14 +39,16 @@ export interface UpdateProfileInput {
   phoneNumber?: string | null;
 }
 
-// MySQL's duplicate-key error code. TypeORM surfaces the underlying driver
-// error on QueryFailedError.driverError.code.
-const MYSQL_DUP_ENTRY = 'ER_DUP_ENTRY';
-function isDuplicateKey(err: unknown): err is QueryFailedError {
-  return (
-    err instanceof QueryFailedError &&
-    (err as QueryFailedError & { driverError?: { code?: string } }).driverError?.code === MYSQL_DUP_ENTRY
-  );
+// Response body for 409 Conflict on register / updateProfile. The
+// controller never constructs this itself — the service throws a
+// ConflictException with this shape as the response, and Nest serialises
+// it as the body. `conflictField` lets clients highlight exactly which
+// input to fix.
+function duplicateConflict(field: ConflictField): ConflictException {
+  return new ConflictException({
+    message: `${field} already in use`,
+    conflictField: field,
+  });
 }
 
 // Minimal shape an auth flow needs. Keeping it narrow prevents callers from
@@ -185,12 +191,16 @@ export class UsersService {
       log.info('auth.register.succeeded', { userId: saved.id });
       return saved;
     } catch (err) {
-      // Generic message: do not reveal which field clashed. Clients that need
-      // that detail should use GET /auth/availability first, which is the
-      // explicit (rate-limited) enumeration surface.
-      if (isDuplicateKey(err)) {
-        log.warn('auth.register.conflict');
-        throw new ConflictException('username or email address already in use');
+      // Field-specific 409: username / emailAddress / phoneNumber each
+      // throw their own exception with conflictField set. This reveals
+      // which input is taken — accepted because /register is rate-limited
+      // to 3/min and /availability already enumerates at 30/min. An
+      // unrecognised index MUST bubble as 500: a wrong 409 would be worse
+      // than an error.
+      const field = conflictFieldFrom(err);
+      if (field) {
+        log.warn('auth.register.conflict', { conflictField: field });
+        throw duplicateConflict(field);
       }
       throw err;
     }
@@ -223,12 +233,17 @@ export class UsersService {
     try {
       await this.users.update({ id: userId, deletedAt: IsNull() }, patch);
     } catch (err) {
-      if (isDuplicateKey(err)) {
+      const field = conflictFieldFrom(err);
+      if (field) {
+        // PATCH /users/me only whitelists phoneNumber as a unique field,
+        // so field is always 'phoneNumber' here today; `conflictField` is
+        // still emitted structurally in case the DTO ever opens up more.
         log.warn('user.profile.update_failed', {
           userId,
-          reason: 'duplicate_phone',
+          reason: 'duplicate',
+          conflictField: field,
         });
-        throw new ConflictException('phone number already in use');
+        throw duplicateConflict(field);
       }
       throw err;
     }
