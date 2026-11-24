@@ -2,12 +2,15 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { LoggerModule } from 'nestjs-pino';
 import { AdminModule } from '../src/admin/admin.module.js';
 import { AppController } from '../src/app.controller.js';
 import { AppService } from '../src/app.service.js';
 import { AuthModule } from '../src/auth/auth.module.js';
 import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../src/auth/guards/roles.guard.js';
+import { LoggingModule } from '../src/common/logging/logging.module.js';
+import { buildPinoOptions } from '../src/common/logging/pino-options.js';
 import { validateEnv } from '../src/env.validation.js';
 import { UsersModule } from '../src/users/users.module.js';
 
@@ -17,6 +20,17 @@ import { UsersModule } from '../src/users/users.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    // Silent pino by default so test output stays readable. The dedicated
+    // logging.e2e-spec.ts bypasses this with a captured in-memory stream.
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        buildPinoOptions({
+          appEnv: config.getOrThrow<string>('APP_ENV'),
+          logLevel: 'silent',
+        }),
+    }),
+    LoggingModule,
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

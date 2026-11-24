@@ -22,7 +22,8 @@ const normalize = ({ value }: { value: unknown }): unknown =>
 
 export class RegisterDto {
   @ApiProperty({
-    description: 'Letters, digits, dot, underscore, hyphen. Lowercased on save.',
+    description:
+      'Letters, digits, dot, underscore, hyphen. Lowercased on save.',
     example: 'rishab.jaiswal',
     minLength: 3,
     maxLength: 30,
@@ -31,7 +32,8 @@ export class RegisterDto {
   @IsString()
   @Length(3, 30)
   @Matches(USERNAME_REGEX, {
-    message: 'username must contain only letters, digits, dot, underscore, hyphen',
+    message:
+      'username must contain only letters, digits, dot, underscore, hyphen',
   })
   username: string;
 
@@ -61,9 +63,14 @@ export class RegisterDto {
   @MaxLength(128)
   password: string;
 
-  @ApiProperty({ required: false, maxLength: 20, example: null, nullable: true })
+  @ApiProperty({
+    required: false,
+    maxLength: 20,
+    example: null,
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
-  @MaxLength(20)
+  @MaxLength(10)
   phoneNumber?: string;
 }

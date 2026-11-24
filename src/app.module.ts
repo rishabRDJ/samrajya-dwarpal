@@ -3,18 +3,34 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { LoggerModule } from 'nestjs-pino';
 import { AdminModule } from './admin/admin.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from './auth/guards/roles.guard.js';
+import { LoggingModule } from './common/logging/logging.module.js';
+import { buildPinoOptions } from './common/logging/pino-options.js';
 import { validateEnv } from './env.validation.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    // nestjs-pino: structured JSON logs with reqId attached per request via
+    // AsyncLocalStorage. buildPinoOptions is factored out for unit testing
+    // — see common/logging/pino-options.spec.ts.
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        buildPinoOptions({
+          appEnv: config.getOrThrow<string>('APP_ENV'),
+          logLevel: config.get<string>('LOG_LEVEL'),
+        }),
+    }),
+    // @Global() LoggingModule provides ScopedLogger to every feature module.
+    LoggingModule,
     // Baseline throttle: 20 requests / minute per IP. Routes can lower the
     // limit with @Throttle() (login does: 5/min). The guard reads these and
     // the @Throttle overrides.

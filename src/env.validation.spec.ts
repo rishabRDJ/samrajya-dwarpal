@@ -10,11 +10,30 @@ const base = {
   JWT_ACCESS_SECRET: 'a'.repeat(48),
   JWT_ACCESS_EXPIRES_IN: '15m',
   REFRESH_TOKEN_TTL_DAYS: '7',
+  APP_ENV: 'local',
 };
 
 describe('validateEnv', () => {
   it('accepts a fully valid environment', () => {
     expect(() => validateEnv(base)).not.toThrow();
+  });
+
+  it('accepts LOG_LEVEL when provided', () => {
+    expect(() => validateEnv({ ...base, LOG_LEVEL: 'debug' })).not.toThrow();
+  });
+
+  it('rejects an APP_ENV outside the known set', () => {
+    expect(() => validateEnv({ ...base, APP_ENV: 'staging' })).toThrow(/APP_ENV/);
+  });
+
+  it('rejects an invalid LOG_LEVEL', () => {
+    expect(() => validateEnv({ ...base, LOG_LEVEL: 'debg' })).toThrow(/LOG_LEVEL/);
+  });
+
+  it('rejects a missing APP_ENV', () => {
+    const without: Record<string, string> = { ...base };
+    delete without.APP_ENV;
+    expect(() => validateEnv(without)).toThrow(/APP_ENV/);
   });
 
   it('rejects a JWT secret shorter than 32 characters', () => {

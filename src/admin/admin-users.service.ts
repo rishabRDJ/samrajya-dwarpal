@@ -7,6 +7,7 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, EntityManager, IsNull, Not, Repository } from 'typeorm';
 import { TokenService } from '../auth/token.service.js';
+import { ScopedLogger } from '../common/logging/scoped-logger.js';
 import { User, UserRole } from '../users/user.entity.js';
 import {
   ListAdminUsersQueryDto,
@@ -32,9 +33,12 @@ export class AdminUsersService {
     private readonly users: Repository<User>,
     private readonly tokens: TokenService,
     @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+    private readonly logger: ScopedLogger,
+  ) {
+    this.logger.forClass(AdminUsersService.name);
+  }
 
-  async list(query: ListAdminUsersQueryDto): Promise<PaginatedUsersDto> {
+  async list(actorId: string, query: ListAdminUsersQueryDto): Promise<PaginatedUsersDto> {
     const qb = this.users.createQueryBuilder('user').withDeleted();
 
     if (query.status === UserListStatus.ACTIVE) {
@@ -63,6 +67,14 @@ export class AdminUsersService {
       .take(query.limit);
 
     const [rows, total] = await qb.getManyAndCount();
+    // Log `status` as the enum (more information than a boolean), plus the
+    // page + limit the caller actually used.
+    this.logger.in('list').debug('admin.users.listed', {
+      actorId,
+      page: query.page,
+      limit: query.limit,
+      status: query.status,
+    });
     return {
       data: rows.map(toUserResponse),
       total,
@@ -76,11 +88,13 @@ export class AdminUsersService {
     targetId: string,
     newRole: UserRole,
   ): Promise<User> {
+    const log = this.logger.in('setRole');
     if (actingAdminId === targetId) {
+      log.warn('admin.role.blocked_self', { actorId: actingAdminId });
       throw new ForbiddenException('admins cannot change their own role');
     }
 
-    return this.dataSource.transaction(async (em) => {
+    const result = await this.dataSource.transaction(async (em) => {
       // Lock the admin set FIRST, in id order. This is the fixed point of
       // every admin-mutating transaction: whoever enters here first holds
       // all admin row locks and others queue. Two concurrent demotions
@@ -99,14 +113,26 @@ export class AdminUsersService {
 
       // Idempotent: setting the same role is a no-op success. Clients can
       // retry PATCH without poisoning the state.
-      if (target.role === newRole) return target;
+      if (target.role === newRole) {
+        return { outcome: 'unchanged' as const, row: target, fromRole: target.role };
+      }
 
       // Demoting an admin? Last-admin check guards the invariant. The
       // count comes from the list we already locked above.
       if (target.role === UserRole.ADMIN && newRole !== UserRole.ADMIN) {
-        this.assertNotLastAdmin(admins);
+        if (admins.length <= 1) {
+          // Throw AFTER building the log payload so the catch outside the
+          // transaction can see both actorId and targetId. assertNotLastAdmin
+          // keeps the same ConflictException it always threw.
+          log.warn('admin.role.blocked_last_admin', {
+            actorId: actingAdminId,
+            targetId,
+          });
+          this.assertNotLastAdmin(admins);
+        }
       }
 
+      const fromRole = target.role;
       await em.getRepository(User).update(
         { id: targetId },
         { role: newRole, lastUpdatedBy: actingAdminId },
@@ -115,20 +141,43 @@ export class AdminUsersService {
       // Demotion kills all refresh sessions: the user keeps their 15-min
       // access token (the stale JWT) but RolesGuard already blocks admin
       // routes against the fresh DB role. See step 3.
-      if (target.role === UserRole.ADMIN && newRole !== UserRole.ADMIN) {
+      if (fromRole === UserRole.ADMIN && newRole !== UserRole.ADMIN) {
         await this.tokens.revokeAllForUser(targetId, em);
       }
 
-      return this.loadForWrite(em, targetId);
+      const fresh = await this.loadForWrite(em, targetId);
+      return { outcome: 'changed' as const, row: fresh, fromRole };
     });
+
+    if (result.outcome === 'unchanged') {
+      log.debug('admin.role.unchanged', {
+        actorId: actingAdminId,
+        targetId,
+        role: result.fromRole,
+      });
+    } else {
+      log.info('admin.role.changed', {
+        actorId: actingAdminId,
+        targetId,
+        from: result.fromRole,
+        to: newRole,
+      });
+    }
+    return result.row;
   }
 
   async softDelete(actingAdminId: string, targetId: string): Promise<void> {
+    const log = this.logger.in('softDelete');
     if (actingAdminId === targetId) {
+      log.warn('admin.user.delete_blocked', {
+        actorId: actingAdminId,
+        targetId,
+        reason: 'self',
+      });
       throw new ForbiddenException('admins cannot delete themselves');
     }
 
-    await this.dataSource.transaction(async (em) => {
+    const targetRole = await this.dataSource.transaction(async (em) => {
       // Same fixed lock order as setRole: admin set first, target second.
       const admins = await this.lockActiveAdmins(em);
 
@@ -139,7 +188,14 @@ export class AdminUsersService {
       }
 
       if (target.role === UserRole.ADMIN) {
-        this.assertNotLastAdmin(admins);
+        if (admins.length <= 1) {
+          log.warn('admin.user.delete_blocked', {
+            actorId: actingAdminId,
+            targetId,
+            reason: 'last_admin',
+          });
+          this.assertNotLastAdmin(admins);
+        }
       }
 
       await em.getRepository(User).softDelete({ id: targetId });
@@ -148,17 +204,30 @@ export class AdminUsersService {
         { lastUpdatedBy: actingAdminId },
       );
       await this.tokens.revokeAllForUser(targetId, em);
+      return target.role;
+    });
+
+    log.info('admin.user.deleted', {
+      actorId: actingAdminId,
+      targetId,
+      targetRole,
     });
   }
 
   async restore(actingAdminId: string, targetId: string): Promise<User> {
+    const log = this.logger.in('restore');
     if (actingAdminId === targetId) {
       // A deleted admin cannot log in, so reaching here with self === target
       // should be impossible. Block anyway for symmetry and defense in depth.
+      log.warn('admin.user.restore_blocked', {
+        actorId: actingAdminId,
+        targetId,
+        reason: 'self',
+      });
       throw new ForbiddenException('admins cannot restore themselves');
     }
 
-    return this.dataSource.transaction(async (em) => {
+    const restored = await this.dataSource.transaction(async (em) => {
       // withDeleted() so we can see the soft-deleted row.
       const target = await em
         .getRepository(User)
@@ -169,6 +238,11 @@ export class AdminUsersService {
         .getOne();
       if (!target) throw new NotFoundException('user not found');
       if (target.deletedAt === null) {
+        log.warn('admin.user.restore_blocked', {
+          actorId: actingAdminId,
+          targetId,
+          reason: 'not_deleted',
+        });
         throw new ConflictException('user is not deleted');
       }
 
@@ -180,6 +254,9 @@ export class AdminUsersService {
       // Do not re-issue refresh tokens: the user will log in fresh.
       return this.loadForWrite(em, targetId);
     });
+
+    log.info('admin.user.restored', { actorId: actingAdminId, targetId });
+    return restored;
   }
 
   // Locks the single user row FOR UPDATE inside a transaction. Serializes

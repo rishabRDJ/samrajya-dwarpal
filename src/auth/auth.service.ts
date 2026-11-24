@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { ScopedLogger } from '../common/logging/scoped-logger.js';
 import { UsersService } from '../users/users.service.js';
 import { TokenResponseDto } from './dto/token-response.dto.js';
 import { TokenService } from './token.service.js';
@@ -30,21 +31,43 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly tokens: TokenService,
     @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+    private readonly logger: ScopedLogger,
+  ) {
+    this.logger.forClass(AuthService.name);
+  }
 
   async login(input: LoginInput): Promise<TokenResponseDto> {
+    const log = this.logger.in('login');
+    const identifierType = input.identifier.includes('@') ? 'email' : 'username';
+
     const found = await this.users.findForAuth(input.identifier);
     // Identical 401 for "unknown identifier" and "wrong password" so an
     // attacker cannot enumerate accounts by comparing responses.
-    if (!found) throw new UnauthorizedException();
+    if (!found) {
+      log.warn('auth.login.failed', {
+        reason: 'unknown_identifier',
+        identifierType,
+        identifier: input.identifier,
+      });
+      throw new UnauthorizedException();
+    }
 
     const ok = await this.users.verifyPassword(found.passwordHash, input.password);
-    if (!ok) throw new UnauthorizedException();
+    if (!ok) {
+      log.warn('auth.login.failed', {
+        reason: 'wrong_password',
+        identifierType,
+        identifier: input.identifier,
+        userId: found.id,
+      });
+      throw new UnauthorizedException();
+    }
 
     const tokens = await this.tokens.issueTokensForUser({ id: found.id, role: found.role });
     // Best-effort audit field. Deliberately after issueTokensForUser so a DB
     // hiccup on this write cannot undo a successful login.
     await this.users.markLoggedIn(found.id);
+    log.info('auth.login.succeeded', { userId: found.id });
     return tokens;
   }
 
@@ -69,18 +92,30 @@ export class AuthService {
     userId: string,
     input: ChangePasswordInput,
   ): Promise<TokenResponseDto> {
+    const log = this.logger.in('changePassword');
+
     // Early, cheap rejection: refusing "same as current" before argon2
     // saves the user 100ms and side-steps the question of whether 400 or
     // 401 wins on same-wrong-same inputs.
     if (input.currentPassword === input.newPassword) {
+      log.warn('user.password.change_failed', {
+        userId,
+        reason: 'same_as_current',
+      });
       throw new BadRequestException('new password must differ from current password');
     }
 
     const found = await this.users.getPasswordContext(userId);
-    if (!found) throw new UnauthorizedException();
+    if (!found) {
+      log.warn('user.password.change_failed', { userId, reason: 'wrong_current' });
+      throw new UnauthorizedException();
+    }
 
     const ok = await this.users.verifyPassword(found.passwordHash, input.currentPassword);
-    if (!ok) throw new UnauthorizedException();
+    if (!ok) {
+      log.warn('user.password.change_failed', { userId, reason: 'wrong_current' });
+      throw new UnauthorizedException();
+    }
 
     const newHash = await this.users.hashPassword(input.newPassword);
 
@@ -92,6 +127,10 @@ export class AuthService {
         em,
       );
       if (!swapped) {
+        log.warn('user.password.change_failed', {
+          userId,
+          reason: 'concurrent_change',
+        });
         throw new ConflictException(
           'password was changed by another process; try again',
         );
@@ -99,6 +138,7 @@ export class AuthService {
       await this.tokens.revokeAllForUser(userId, em);
     });
 
+    log.info('user.password.changed', { userId });
     return this.tokens.issueTokensForUser({ id: found.id, role: found.role });
   }
 }

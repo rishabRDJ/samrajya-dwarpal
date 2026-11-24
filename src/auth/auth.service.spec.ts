@@ -4,6 +4,8 @@ import { jest } from '@jest/globals';
 import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ScopedLogger } from '../common/logging/scoped-logger.js';
+import { createScopedLoggerMock } from '../common/logging/scoped-logger.mock.js';
 import { UserRole } from '../users/user.entity.js';
 import { UsersService } from '../users/users.service.js';
 import { AuthService } from './auth.service.js';
@@ -29,6 +31,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let users: MockedUsers;
   let tokens: MockedTokens;
+  let logger: ReturnType<typeof createScopedLoggerMock>;
 
   const tokenPair = {
     accessToken: 'at',
@@ -61,15 +64,106 @@ describe('AuthService', () => {
       revokeAllForUser: jest.fn(),
     } as MockedTokens;
 
+    logger = createScopedLoggerMock();
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: UsersService, useValue: users },
         { provide: TokenService, useValue: tokens },
         { provide: getDataSourceToken(), useValue: dataSource },
+        { provide: ScopedLogger, useValue: logger.instance },
       ],
     }).compile();
     service = moduleRef.get(AuthService);
+  });
+
+  describe('logging', () => {
+    it('login success emits auth.login.succeeded with userId', async () => {
+      users.findForAuth.mockResolvedValue({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
+      users.verifyPassword.mockResolvedValue(true);
+      tokens.issueTokensForUser.mockResolvedValue(tokenPair);
+      await service.login({ identifier: 'rishab', password: 'pw' });
+      expect(logger.info).toHaveBeenCalledWith('auth.login.succeeded', { userId: 'u1' });
+    });
+
+    it('login with unknown identifier emits auth.login.failed with reason unknown_identifier and the attempted identifier for debugging', async () => {
+      users.findForAuth.mockResolvedValue(null);
+      await expect(
+        service.login({ identifier: 'nobody@nowhere', password: 'pw' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(logger.warn).toHaveBeenCalledWith('auth.login.failed', {
+        reason: 'unknown_identifier',
+        identifierType: 'email',
+        identifier: 'nobody@nowhere',
+      });
+    });
+
+    it('login with wrong password includes userId plus identifier', async () => {
+      users.findForAuth.mockResolvedValue({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
+      users.verifyPassword.mockResolvedValue(false);
+      await expect(
+        service.login({ identifier: 'rishab', password: 'pw' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(logger.warn).toHaveBeenCalledWith('auth.login.failed', {
+        reason: 'wrong_password',
+        identifierType: 'username',
+        identifier: 'rishab',
+        userId: 'u1',
+      });
+    });
+
+    it('never logs the attempted password on any failure path', async () => {
+      users.findForAuth.mockResolvedValue({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
+      users.verifyPassword.mockResolvedValue(false);
+      await expect(
+        service.login({ identifier: 'rishab', password: 'super-secret-password' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      // Full history must not contain the password anywhere.
+      const everyArg = [
+        ...logger.info.mock.calls.flat(),
+        ...logger.warn.mock.calls.flat(),
+        ...logger.debug.mock.calls.flat(),
+      ];
+      for (const call of everyArg) {
+        if (typeof call === 'object' && call) {
+          expect(JSON.stringify(call)).not.toContain('super-secret-password');
+        }
+      }
+    });
+
+    it('changePassword same_as_current emits user.password.change_failed with reason', async () => {
+      await expect(
+        service.changePassword('u1', { currentPassword: 's', newPassword: 's' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(logger.warn).toHaveBeenCalledWith('user.password.change_failed', {
+        userId: 'u1',
+        reason: 'same_as_current',
+      });
+    });
+
+    it('changePassword success emits user.password.changed with userId', async () => {
+      users.getPasswordContext.mockResolvedValue({ id: 'u1', role: UserRole.USER, passwordHash: 'oldhash' });
+      users.verifyPassword.mockResolvedValue(true);
+      users.hashPassword.mockResolvedValue('newhash');
+      users.updatePasswordHash.mockResolvedValue(true);
+      tokens.issueTokensForUser.mockResolvedValue(tokenPair);
+      await service.changePassword('u1', { currentPassword: 'old', newPassword: 'new-and-long' });
+      expect(logger.info).toHaveBeenCalledWith('user.password.changed', { userId: 'u1' });
+    });
+
+    it('changePassword lost-race emits user.password.change_failed with reason concurrent_change', async () => {
+      users.getPasswordContext.mockResolvedValue({ id: 'u1', role: UserRole.USER, passwordHash: 'oldhash' });
+      users.verifyPassword.mockResolvedValue(true);
+      users.hashPassword.mockResolvedValue('newhash');
+      users.updatePasswordHash.mockResolvedValue(false);
+      await expect(
+        service.changePassword('u1', { currentPassword: 'old', newPassword: 'new-and-long' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(logger.warn).toHaveBeenCalledWith('user.password.change_failed', {
+        userId: 'u1',
+        reason: 'concurrent_change',
+      });
+    });
   });
 
   describe('login', () => {
