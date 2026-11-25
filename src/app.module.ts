@@ -13,6 +13,7 @@ import { RolesGuard } from './auth/guards/roles.guard.js';
 import { LoggingModule } from './common/logging/logging.module.js';
 import { buildPinoOptions } from './common/logging/pino-options.js';
 import { validateEnv } from './env.validation.js';
+import { FyersModule } from './fyers/fyers.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -58,6 +59,7 @@ import { UsersModule } from './users/users.module.js';
     UsersModule,
     AuthModule,
     AdminModule,
+    FyersModule,
   ],
   controllers: [AppController],
   providers: [

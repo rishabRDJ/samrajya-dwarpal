@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  IsUrl,
   Matches,
   MinLength,
   validateSync,
@@ -86,6 +87,30 @@ class EnvironmentVariables {
     message: 'ENCRYPTION_KEY must be exactly 64 hex characters',
   })
   ENCRYPTION_KEY: string;
+
+  // Fyers v3 non-trading app for this environment. Format is <appId>-100.
+  @IsString()
+  FYERS_APP_ID: string;
+
+  @IsString()
+  @MinLength(8)
+  FYERS_SECRET: string;
+
+  // Must match exactly what is registered in the Fyers app console; Fyers
+  // rejects any variant.
+  @IsUrl({ require_tld: false, require_protocol: true })
+  FYERS_REDIRECT_URI: string;
+
+  // Where /callback 302s the browser on every outcome. No trailing slash.
+  @IsUrl({ require_tld: false, require_protocol: true })
+  DARBAR_APP_URL: string;
+
+  // Shared secret between Dwarpal and Diwan; 64 hex chars.
+  @IsString()
+  @Matches(/^[0-9a-fA-F]{64}$/, {
+    message: 'SYSTEM_API_KEY must be exactly 64 hex characters',
+  })
+  SYSTEM_API_KEY: string;
 }
 
 export function validateEnv(
