@@ -9,6 +9,34 @@ type OpenApiPaths = OpenAPIObject['paths'];
 const VERSION_NEUTRAL_PATHS = new Set(['/', '/health']);
 const API_VERSION_PREFIX = '/v1';
 
+type CorsOriginEntry = string | RegExp;
+type CorsOriginCallback = (err: Error | null, allow?: boolean) => void;
+
+function parseCorsOrigins(raw: string | undefined): CorsOriginEntry[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) =>
+      s.startsWith('/') && s.endsWith('/') && s.length > 2
+        ? new RegExp(s.slice(1, -1))
+        : s,
+    );
+}
+
+function corsOriginChecker(list: CorsOriginEntry[]) {
+  return (origin: string | undefined, cb: CorsOriginCallback) => {
+    // No Origin header = same-origin, curl, or server-to-server. Allow.
+    if (!origin) return cb(null, true);
+    const ok = list.some((e) =>
+      typeof e === 'string' ? e === origin : e.test(origin),
+    );
+    if (ok) return cb(null, true);
+    return cb(new Error(`CORS: origin ${origin} not allowed`), false);
+  };
+}
+
 // Single source of truth for global app configuration. main.ts and e2e tests
 // both call this, so tests cannot drift from production config.
 export function setupApp(app: INestApplication): void {
@@ -18,6 +46,16 @@ export function setupApp(app: INestApplication): void {
   // Routes that opt out with @Version(VERSION_NEUTRAL) stay unversioned
   // (used for /health so monitoring stays stable across API versions).
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+
+  // CORS whitelist from CORS_ORIGINS (comma-separated). Entries are exact
+  // origin strings, or /regex/ for preview URLs (Render, Vercel). Credentials
+  // are enabled so the browser can send cookies / Authorization on
+  // cross-origin requests from Darbar and Diwan.
+  const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
+  app.enableCors({
+    origin: corsOriginChecker(corsOrigins),
+    credentials: true,
+  });
 
   // whitelist: strip properties not on the DTO.
   // forbidNonWhitelisted: 400 on unknown fields (louder than silent strip).

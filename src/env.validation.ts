@@ -105,6 +105,15 @@ class EnvironmentVariables {
   @IsUrl({ require_tld: false, require_protocol: true })
   DARBAR_APP_URL: string;
 
+  // CORS whitelist. Comma-separated list of allowed browser origins. Each
+  // entry is either an exact origin ("http://local.darbar.dev:3001") or a
+  // /regex/ for preview URLs ("/^https:\\/\\/.*\\.vercel\\.app$/"). Optional:
+  // if unset, cross-origin browser requests are rejected (server-to-server
+  // and same-origin still work). See src/app.setup.ts.
+  @IsOptional()
+  @IsString()
+  CORS_ORIGINS?: string;
+
   // Shared secret between Dwarpal and Diwan; 64 hex chars.
   @IsString()
   @Matches(/^[0-9a-fA-F]{64}$/, {
