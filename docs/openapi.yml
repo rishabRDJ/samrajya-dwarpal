@@ -22,13 +22,17 @@ paths:
           description: ''
       tags:
         - App
-  /users/me:
+  /v1/users/me:
     get:
       operationId: UsersController_me
       parameters: []
       responses:
         '200':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseDto'
       security:
         - bearer: []
       summary: Return the authenticated user profile
@@ -59,7 +63,7 @@ paths:
       summary: Update the authenticated user profile
       tags:
         - users
-  /auth/login:
+  /v1/auth/login:
     post:
       operationId: AuthController_login
       parameters: []
@@ -81,7 +85,7 @@ paths:
       summary: Log in with email or username + password
       tags:
         - auth
-  /auth/refresh:
+  /v1/auth/refresh:
     post:
       operationId: AuthController_refresh
       parameters: []
@@ -103,7 +107,7 @@ paths:
       summary: Rotate a refresh token for a new access + refresh pair
       tags:
         - auth
-  /auth/logout:
+  /v1/auth/logout:
     post:
       operationId: AuthController_logout
       parameters: []
@@ -119,7 +123,7 @@ paths:
       summary: Revoke a refresh token (idempotent)
       tags:
         - auth
-  /auth/register:
+  /v1/auth/register:
     post:
       operationId: AuthController_register
       parameters: []
@@ -143,7 +147,7 @@ paths:
       summary: Create a new account
       tags:
         - auth
-  /auth/availability:
+  /v1/auth/availability:
     get:
       description: Exactly one of username or emailAddress must be provided.
       operationId: AuthController_availability
@@ -175,7 +179,7 @@ paths:
       summary: Check if a username or email address is free to register
       tags:
         - auth
-  /users/me/password:
+  /v1/users/me/password:
     post:
       operationId: UserPasswordController_changePassword
       parameters: []
@@ -187,13 +191,23 @@ paths:
               $ref: '#/components/schemas/ChangePasswordDto'
       responses:
         '200':
-          description: ''
+          description: New access + refresh pair. All previous refresh tokens for this user are revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponseDto'
+        '400':
+          description: newPassword too short or equal to currentPassword
+        '401':
+          description: Missing / invalid bearer, or wrong current password
+        '409':
+          description: Password was mutated by another request mid-change
       security:
         - bearer: []
       summary: Change the authenticated user password and rotate all sessions
       tags:
         - users
-  /admin/users:
+  /v1/admin/users:
     get:
       operationId: AdminUsersController_list
       parameters:
@@ -240,12 +254,16 @@ paths:
       responses:
         '200':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUsersDto'
       security:
         - bearer: []
       summary: List users (paginated) with optional filters
       tags:
         - admin / users
-  /admin/users/{id}/role:
+  /v1/admin/users/{id}/role:
     patch:
       operationId: AdminUsersController_setRole
       parameters:
@@ -263,12 +281,16 @@ paths:
       responses:
         '200':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseDto'
       security:
         - bearer: []
       summary: Change a user's role
       tags:
         - admin / users
-  /admin/users/{id}:
+  /v1/admin/users/{id}:
     delete:
       operationId: AdminUsersController_softDelete
       parameters:
@@ -279,13 +301,13 @@ paths:
             type: string
       responses:
         '204':
-          description: ''
+          description: User soft-deleted; refresh tokens revoked
       security:
         - bearer: []
       summary: Soft-delete a user and revoke every session
       tags:
         - admin / users
-  /admin/users/{id}/restore:
+  /v1/admin/users/{id}/restore:
     patch:
       operationId: AdminUsersController_restore
       parameters:
@@ -297,6 +319,10 @@ paths:
       responses:
         '200':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseDto'
       security:
         - bearer: []
       summary: Restore a soft-deleted user
@@ -311,9 +337,9 @@ tags: []
 servers:
   - url: http://localhost:3000
     description: Local
-  - url: https://preview.samrajya-dwarpal.example
+  - url: https://samrajya-dwarpal.onrender.com
     description: Preview
-  - url: https://api.samrajya-dwarpal.example
+  - url: https://samrajya-dwarpal-prod.onrender.com
     description: Production
 components:
   securitySchemes:
@@ -322,25 +348,6 @@ components:
       bearerFormat: JWT
       type: http
   schemas:
-    UpdateMeDto:
-      type: object
-      properties:
-        firstName:
-          type: string
-          minLength: 1
-          maxLength: 100
-          example: Rishab
-        lastName:
-          type: string
-          minLength: 1
-          maxLength: 100
-          example: Jaiswal
-        phoneNumber:
-          type: string
-          nullable: true
-          example: '9876543210'
-          pattern: ^[6-9]\d{9}$
-          description: 10-digit Indian mobile number; must be unique. Pass null to clear the stored value.
     UserResponseDto:
       type: object
       properties:
@@ -399,6 +406,25 @@ components:
         - emailVerifiedAt
         - createdAt
         - updatedAt
+    UpdateMeDto:
+      type: object
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Rishab
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Jaiswal
+        phoneNumber:
+          type: string
+          nullable: true
+          example: '9876543210'
+          pattern: ^[6-9]\d{9}$
+          description: 10-digit Indian mobile number; must be unique. Pass null to clear the stored value.
     LoginDto:
       type: object
       properties:
@@ -510,6 +536,28 @@ components:
       required:
         - currentPassword
         - newPassword
+    PaginatedUsersDto:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponseDto'
+        total:
+          type: number
+          example: 42
+          description: Total matching rows across all pages
+        page:
+          type: number
+          example: 1
+        limit:
+          type: number
+          example: 20
+      required:
+        - data
+        - total
+        - page
+        - limit
     UpdateRoleDto:
       type: object
       properties:

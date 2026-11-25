@@ -1,6 +1,14 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 
+type OpenApiPaths = OpenAPIObject['paths'];
+
+// Paths that opt out of URI versioning via @Version(VERSION_NEUTRAL) on
+// their handler — see AppController. Keep this list in sync with the
+// handler decorators so the generated spec matches the real routes.
+const VERSION_NEUTRAL_PATHS = new Set(['/', '/health']);
+const API_VERSION_PREFIX = '/v1';
+
 // Single source of truth for global app configuration. main.ts and e2e tests
 // both call this, so tests cannot drift from production config.
 export function setupApp(app: INestApplication): void {
@@ -39,10 +47,28 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
     // generators) can target any env from the same committed YAML. Order
     // matters: Swagger UI defaults to the first entry.
     .addServer('http://localhost:3000', 'Local')
-    .addServer('https://preview.samrajya-dwarpal.example', 'Preview')
-    .addServer('https://api.samrajya-dwarpal.example', 'Production')
+    .addServer('https://samrajya-dwarpal.onrender.com', 'Preview')
+    .addServer('https://samrajya-dwarpal-prod.onrender.com', 'Production')
     .build();
-  return SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, config);
+  return applyVersionPrefix(document);
+}
+
+// nestjs-swagger does not reflect URI versioning in its generated paths.
+// Without this, the spec lists `/auth/login` even though the real route
+// is `/v1/auth/login`, and anyone copying endpoints from the YAML gets
+// 404s. We rewrite paths here instead of in each @Controller: keeping
+// the version concern in ONE place (next to app.enableVersioning above)
+// means a future bump to /v2 is a one-line change.
+function applyVersionPrefix(document: OpenAPIObject): OpenAPIObject {
+  const prefixed: OpenApiPaths = {};
+  for (const [path, item] of Object.entries(document.paths)) {
+    const key = VERSION_NEUTRAL_PATHS.has(path)
+      ? path
+      : `${API_VERSION_PREFIX}${path}`;
+    prefixed[key] = item;
+  }
+  return { ...document, paths: prefixed };
 }
 
 // Swagger is separated because e2e tests do not need the /docs endpoint

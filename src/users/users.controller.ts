@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Patch } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/jwt.strategy.js';
 import { UpdateMeDto } from './dto/update-me.dto.js';
@@ -17,6 +17,7 @@ export class UsersController {
   // want the whole profile must read it here.
   @Get('me')
   @ApiOperation({ summary: 'Return the authenticated user profile' })
+  @ApiOkResponse({ type: UserResponseDto })
   async me(@CurrentUser() user: AuthenticatedUser): Promise<UserResponseDto> {
     const profile = await this.users.getActiveProfile(user.id);
     return toUserResponse(profile);

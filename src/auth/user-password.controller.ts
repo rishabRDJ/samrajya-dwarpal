@@ -1,5 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from './decorators/current-user.decorator.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
@@ -29,6 +29,14 @@ export class UserPasswordController {
   @ApiOperation({
     summary: 'Change the authenticated user password and rotate all sessions',
   })
+  @ApiOkResponse({
+    type: TokenResponseDto,
+    description:
+      'New access + refresh pair. All previous refresh tokens for this user are revoked.',
+  })
+  @ApiResponse({ status: 400, description: 'newPassword too short or equal to currentPassword' })
+  @ApiResponse({ status: 401, description: 'Missing / invalid bearer, or wrong current password' })
+  @ApiResponse({ status: 409, description: 'Password was mutated by another request mid-change' })
   changePassword(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ChangePasswordDto,
