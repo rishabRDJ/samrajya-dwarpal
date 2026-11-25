@@ -10,7 +10,13 @@ import {
   Patch,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { AuthenticatedUser } from '../auth/jwt.strategy.js';
@@ -37,6 +43,7 @@ export class AdminUsersController {
 
   @Get()
   @ApiOperation({ summary: 'List users (paginated) with optional filters' })
+  @ApiOkResponse({ type: PaginatedUsersDto })
   list(
     @CurrentUser() actor: AuthenticatedUser,
     @Query() query: ListAdminUsersQueryDto,
@@ -46,6 +53,7 @@ export class AdminUsersController {
 
   @Patch(':id/role')
   @ApiOperation({ summary: "Change a user's role" })
+  @ApiOkResponse({ type: UserResponseDto })
   async setRole(
     @CurrentUser() actor: AuthenticatedUser,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -58,6 +66,7 @@ export class AdminUsersController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft-delete a user and revoke every session' })
+  @ApiNoContentResponse({ description: 'User soft-deleted; refresh tokens revoked' })
   async softDelete(
     @CurrentUser() actor: AuthenticatedUser,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -67,6 +76,7 @@ export class AdminUsersController {
 
   @Patch(':id/restore')
   @ApiOperation({ summary: 'Restore a soft-deleted user' })
+  @ApiOkResponse({ type: UserResponseDto })
   async restore(
     @CurrentUser() actor: AuthenticatedUser,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,

@@ -37,7 +37,19 @@ npm run start:dev
 
 ## API docs
 
-`GET /docs` serves Swagger UI and `GET /docs-json` serves the raw OpenAPI document. Both are public so the docs can be linked from a CV. In the production env the "Try it out" button is disabled (`supportedSubmitMethods: []`) so anonymous visitors can't fire requests from the docs page — share the **preview** URL if you want readers to be able to try endpoints interactively.
+Three places to read the API, in order of preference for most tasks:
+
+1. **[docs/openapi.yml](docs/openapi.yml)** — the committed OpenAPI 3.0 spec. Open it in your editor to copy an endpoint, its request body, or its response schema. Read it locally (or in your IDE) — don't browse it on GitHub's online file view; the raw file is the source of truth, and the rendered view can drift behind the committed file.
+2. **`GET /docs`** — Swagger UI, served by the running app. Public in every env; in production the "Try it out" button is disabled (`supportedSubmitMethods: []`) so an anonymous visitor cannot fire production requests from the docs page. Share the **preview** URL if you want readers to try endpoints interactively.
+3. **`GET /docs-json`** — the raw spec the running app serves. Same shape as `docs/openapi.yml` but comes live from the app, so it's the authority when they disagree.
+
+### Regenerate the committed spec
+
+```bash
+npm run openapi:dump
+```
+
+Builds the app, boots it long enough to introspect routes, and writes `docs/openapi.yml`. Run this whenever a controller, DTO or `@ApiResponse` changes so the committed spec doesn't drift from the running app.
 
 ## Logging
 
