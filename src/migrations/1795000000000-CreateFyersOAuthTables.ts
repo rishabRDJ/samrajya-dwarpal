@@ -26,7 +26,7 @@ export class CreateFyersOAuthTables1795000000000 implements MigrationInterface {
         INDEX \`IDX_fyers_oauth_states_userId\` (\`userId\`),
         PRIMARY KEY (\`id\`),
         CONSTRAINT \`FK_fyers_oauth_states_userId\` FOREIGN KEY (\`userId\`)
-          REFERENCES \`users\` (\`id\`) ON DELETE CASCADE ON UPDATE CASCADE
+          REFERENCES \`users\` (\`id\`) ON DELETE CASCADE ON UPDATE NO ACTION
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
     `);
 
@@ -47,7 +47,7 @@ export class CreateFyersOAuthTables1795000000000 implements MigrationInterface {
         PRIMARY KEY (\`id\`),
         CONSTRAINT \`FK_fyers_credentials_connectedByUserId\`
           FOREIGN KEY (\`connectedByUserId\`)
-          REFERENCES \`users\` (\`id\`) ON DELETE SET NULL ON UPDATE CASCADE
+          REFERENCES \`users\` (\`id\`) ON DELETE SET NULL ON UPDATE NO ACTION
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
     `);
   }

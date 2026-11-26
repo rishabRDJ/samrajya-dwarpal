@@ -56,7 +56,7 @@ describe('FyersClient', () => {
       .update(`${APP_ID}:${SECRET}`)
       .digest('hex');
 
-    const fetchMock = jest.fn(async (_url: any, init: any) => ({
+    const fetchMock = jest.fn(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ access_token: 'tok-abc', s: 'ok' }),
