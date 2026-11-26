@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  IsUrl,
   Matches,
   MinLength,
   validateSync,
@@ -79,9 +80,51 @@ class EnvironmentVariables {
   @IsOptional()
   @IsIn(LOG_LEVELS)
   LOG_LEVEL?: LogLevel;
+
+  // 64 hex chars → 32 raw bytes. Fail boot on anything else.
+  @IsString()
+  @Matches(/^[0-9a-fA-F]{64}$/, {
+    message: 'ENCRYPTION_KEY must be exactly 64 hex characters',
+  })
+  ENCRYPTION_KEY: string;
+
+  // Fyers v3 non-trading app for this environment. Format is <appId>-100.
+  @IsString()
+  FYERS_APP_ID: string;
+
+  @IsString()
+  @MinLength(8)
+  FYERS_SECRET: string;
+
+  // Must match exactly what is registered in the Fyers app console; Fyers
+  // rejects any variant.
+  @IsUrl({ require_tld: false, require_protocol: true })
+  FYERS_REDIRECT_URI: string;
+
+  // Where /callback 302s the browser on every outcome. No trailing slash.
+  @IsUrl({ require_tld: false, require_protocol: true })
+  DARBAR_APP_URL: string;
+
+  // CORS whitelist. Comma-separated list of allowed browser origins. Each
+  // entry is either an exact origin ("http://local.darbar.dev:3001") or a
+  // /regex/ for preview URLs ("/^https:\\/\\/.*\\.vercel\\.app$/"). Optional:
+  // if unset, cross-origin browser requests are rejected (server-to-server
+  // and same-origin still work). See src/app.setup.ts.
+  @IsOptional()
+  @IsString()
+  CORS_ORIGINS?: string;
+
+  // Shared secret between Dwarpal and Diwan; 64 hex chars.
+  @IsString()
+  @Matches(/^[0-9a-fA-F]{64}$/, {
+    message: 'SYSTEM_API_KEY must be exactly 64 hex characters',
+  })
+  SYSTEM_API_KEY: string;
 }
 
-export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables {
+export function validateEnv(
+  raw: Record<string, unknown>,
+): EnvironmentVariables {
   // enableImplicitConversion lets "3307" become 3307, "15" become 15, etc.
   // Without it, every number field would fail @IsInt because env vars arrive
   // as strings.
@@ -94,7 +137,10 @@ export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables 
     // Join each failing field's constraint messages so the first boot log
     // clearly states what to fix.
     const summary = errors
-      .map((e) => `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`)
+      .map(
+        (e) =>
+          `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`,
+      )
       .join('\n  ');
     throw new Error(`Environment validation failed:\n  ${summary}`);
   }

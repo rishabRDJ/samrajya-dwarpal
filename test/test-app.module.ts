@@ -12,6 +12,8 @@ import { RolesGuard } from '../src/auth/guards/roles.guard.js';
 import { LoggingModule } from '../src/common/logging/logging.module.js';
 import { buildPinoOptions } from '../src/common/logging/pino-options.js';
 import { validateEnv } from '../src/env.validation.js';
+import { FyersModule } from '../src/fyers/fyers.module.js';
+import { InternalModule } from '../src/internal/internal.module.js';
 import { UsersModule } from '../src/users/users.module.js';
 
 // Mirror of AppModule without ThrottlerModule. @nestjs/throttler has an
@@ -49,6 +51,8 @@ import { UsersModule } from '../src/users/users.module.js';
     UsersModule,
     AuthModule,
     AdminModule,
+    FyersModule,
+    InternalModule,
   ],
   controllers: [AppController],
   providers: [

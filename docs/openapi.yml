@@ -328,6 +328,72 @@ paths:
       summary: Restore a soft-deleted user
       tags:
         - admin / users
+  /v1/auth/fyers/login-url:
+    get:
+      operationId: FyersAuthController_loginUrl
+      parameters: []
+      responses:
+        '200':
+          description: Fyers authorise URL to open in the owner browser
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                required:
+                  - url
+        '401':
+          description: Missing / invalid bearer token
+        '403':
+          description: Caller is not an admin
+      security:
+        - bearer: []
+      summary: Mint a new OAuth state and return the Fyers authorise URL
+      tags:
+        - fyers
+  /v1/auth/fyers/status:
+    get:
+      operationId: FyersAuthController_status
+      parameters: []
+      responses:
+        '200':
+          description: Current connection state; ciphertext is never returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connected:
+                    type: boolean
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  connectedByUserId:
+                    type: string
+                    format: uuid
+                    nullable: true
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                required:
+                  - connected
+                  - expiresAt
+                  - connectedByUserId
+                  - updatedAt
+        '401':
+          description: Missing / invalid bearer token
+        '403':
+          description: Caller is not an admin
+      security:
+        - bearer: []
+      summary: Report whether a live Fyers token is stored
+      tags:
+        - fyers
 info:
   title: Samrajya Dwarpal
   description: Users and authentication service for Project Samrajya
