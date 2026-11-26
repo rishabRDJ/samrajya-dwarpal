@@ -11,6 +11,12 @@ const base = {
   JWT_ACCESS_EXPIRES_IN: '15m',
   REFRESH_TOKEN_TTL_DAYS: '7',
   APP_ENV: 'local',
+  ENCRYPTION_KEY: 'a'.repeat(64),
+  FYERS_APP_ID: 'ABC123-100',
+  FYERS_SECRET: 'secret-at-least-8',
+  FYERS_REDIRECT_URI: 'http://localhost:3000/callback',
+  DARBAR_APP_URL: 'http://localhost:3001',
+  SYSTEM_API_KEY: 'b'.repeat(64),
 };
 
 describe('validateEnv', () => {
