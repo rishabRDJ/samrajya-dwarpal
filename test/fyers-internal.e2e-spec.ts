@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { jest } from '@jest/globals';
 import type { INestApplication } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import type { User } from '../src/users/user.entity.js';
