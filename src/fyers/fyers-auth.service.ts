@@ -164,7 +164,7 @@ export class FyersAuthService {
   }
 
   private redirect(outcome: CallbackOutcome): string {
-    const url = new URL(`${this.darbarUrl}/settings/fyers`);
+    const url = new URL(`${this.darbarUrl}/dashboard`);
     url.searchParams.set('status', outcome.status);
     if (outcome.status === 'error') {
       url.searchParams.set('reason', outcome.reason);
@@ -179,24 +179,34 @@ export function hashState(raw: string): string {
   return createHash('sha256').update(raw).digest('hex');
 }
 
-// Access tokens from Fyers are JWTs; the exp claim is the real expiry. If we
-// can't read it, fall back to the next 01:00 UTC (06:30 IST) — the daily
-// market-open deadline the owner must log in before.
+// Every stored Fyers token expires at or before 23:59:59.999 UTC today —
+// the last tick of the current UTC calendar day — so the DB literally shows
+// `YYYY-MM-DD 23:59:59` on today's date. Fyers's own JWT exp is the upper
+// bound; our end-of-day is the hard cap. min() of the two is strictly safer.
 export function deriveExpiresAt(accessToken: string): Date {
+  const cap = endOfTodayUtc();
+
   const parts = accessToken.split('.');
   if (parts.length === 3) {
     try {
       const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
       const payload = JSON.parse(payloadJson) as { exp?: number };
-      if (payload.exp) return new Date(payload.exp * 1000);
+      if (payload.exp) {
+        const jwtExp = new Date(payload.exp * 1000);
+        return jwtExp < cap ? jwtExp : cap;
+      }
     } catch {
-      /* fall through to the deadline-based fallback */
+      /* fall through to the cap */
     }
   }
-  const next = new Date();
-  next.setUTCHours(1, 0, 0, 0);
-  if (next.getTime() <= Date.now()) next.setUTCDate(next.getUTCDate() + 1);
-  return next;
+  return cap;
+}
+
+// 23:59:59.999 UTC today — one millisecond before midnight UTC.
+export function endOfTodayUtc(now: Date = new Date()): Date {
+  const end = new Date(now);
+  end.setUTCHours(23, 59, 59, 999);
+  return end;
 }
 
 // Coded error the internal controller unpacks into 404/410.
