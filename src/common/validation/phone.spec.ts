@@ -11,7 +11,7 @@ class Host {
 async function errorsFor(value: unknown): Promise<string[]> {
   const inst = plainToInstance(Host, { value });
   const errors = await validate(inst);
-  return errors.flatMap((e) => Object.keys(e.constraints ?? {}));
+  return errors.flatMap((err) => Object.keys(err.constraints ?? {}));
 }
 
 async function transformedValue(value: unknown): Promise<unknown> {

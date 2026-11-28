@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsString, Length, Matches, MaxLength, ValidateIf } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  Length,
+  Matches,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 import { TrimLower } from '../../common/validation/transforms.js';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/;
@@ -15,17 +22,18 @@ const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/;
 export class AvailabilityQueryDto {
   @ApiPropertyOptional({ example: 'rishab', minLength: 3, maxLength: 30 })
   @TrimLower()
-  @ValidateIf((o) => !o.emailAddress)
+  @ValidateIf((obj) => !obj.emailAddress)
   @IsString()
   @Length(3, 30)
   @Matches(USERNAME_REGEX, {
-    message: 'username must contain only letters, digits, dot, underscore, hyphen',
+    message:
+      'username must contain only letters, digits, dot, underscore, hyphen',
   })
   username?: string;
 
   @ApiPropertyOptional({ example: 'rishab@example.com', maxLength: 255 })
   @TrimLower()
-  @ValidateIf((o) => !o.username)
+  @ValidateIf((obj) => !obj.username)
   @IsEmail()
   @MaxLength(255)
   emailAddress?: string;
