@@ -12,7 +12,7 @@ async function errorsFor(value: unknown): Promise<string[]> {
   const h = new Host();
   (h as unknown as { value: unknown }).value = value;
   const errors = await validate(h);
-  return errors.flatMap((e) => Object.keys(e.constraints ?? {}));
+  return errors.flatMap((err) => Object.keys(err.constraints ?? {}));
 }
 
 describe('@IsPassword', () => {

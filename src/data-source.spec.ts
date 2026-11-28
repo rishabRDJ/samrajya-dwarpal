@@ -38,35 +38,35 @@ describe('data-source', () => {
 
   it('builds a mysql DataSource from env vars', async () => {
     const ds = await loadDataSource();
-    const o = ds.options as MysqlDataSourceOptions;
-    expect(o.type).toBe('mysql');
-    expect(o.host).toBe('db.example.com');
-    expect(o.port).toBe(3307);
-    expect(o.username).toBe('tester');
-    expect(o.password).toBe('secret');
-    expect(o.database).toBe('darbar_test');
+    const options = ds.options as MysqlDataSourceOptions;
+    expect(options.type).toBe('mysql');
+    expect(options.host).toBe('db.example.com');
+    expect(options.port).toBe(3307);
+    expect(options.username).toBe('tester');
+    expect(options.password).toBe('secret');
+    expect(options.database).toBe('darbar_test');
   });
 
   it('coerces DB_PORT to a number', async () => {
     process.env.DB_PORT = '3310';
     const ds = await loadDataSource();
-    const o = ds.options as MysqlDataSourceOptions;
-    expect(o.port).toBe(3310);
-    expect(typeof o.port).toBe('number');
+    const options = ds.options as MysqlDataSourceOptions;
+    expect(options.port).toBe(3310);
+    expect(typeof options.port).toBe('number');
   });
 
   it('configures SSL with rejectUnauthorized=false', async () => {
     const ds = await loadDataSource();
-    const o = ds.options as MysqlDataSourceOptions;
-    expect(o.ssl).toEqual({ rejectUnauthorized: false });
+    const options = ds.options as MysqlDataSourceOptions;
+    expect(options.ssl).toEqual({ rejectUnauthorized: false });
   });
 
   it('points entities and migrations at the dist build output', async () => {
     const ds = await loadDataSource();
-    const o = ds.options as MysqlDataSourceOptions;
-    expect(o.entities).toEqual(['dist/**/*.entity.js']);
-    expect(o.migrations).toEqual(['dist/migrations/*.js']);
-    expect(o.migrationsTableName).toBe('typeorm_migrations');
+    const options = ds.options as MysqlDataSourceOptions;
+    expect(options.entities).toEqual(['dist/**/*.entity.js']);
+    expect(options.migrations).toEqual(['dist/migrations/*.js']);
+    expect(options.migrationsTableName).toBe('typeorm_migrations');
   });
 
   it('is not initialized at module load', async () => {

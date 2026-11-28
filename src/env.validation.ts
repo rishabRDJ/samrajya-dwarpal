@@ -138,8 +138,8 @@ export function validateEnv(
     // clearly states what to fix.
     const summary = errors
       .map(
-        (e) =>
-          `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`,
+        (err) =>
+          `${err.property}: ${Object.values(err.constraints ?? {}).join(', ')}`,
       )
       .join('\n  ');
     throw new Error(`Environment validation failed:\n  ${summary}`);

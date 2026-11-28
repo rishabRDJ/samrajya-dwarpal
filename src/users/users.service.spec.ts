@@ -7,7 +7,10 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { IsNull, QueryFailedError } from 'typeorm';
 import { ScopedLogger } from '../common/logging/scoped-logger.js';
-import { createScopedLoggerMock, type ScopedLoggerMock } from '../common/logging/scoped-logger.mock.js';
+import {
+  createScopedLoggerMock,
+  type ScopedLoggerMock,
+} from '../common/logging/scoped-logger.mock.js';
 import { User, UserRole } from './user.entity.js';
 import { UsersService } from './users.service.js';
 
@@ -45,16 +48,28 @@ describe('UsersService', () => {
 
   describe('findForAuth', () => {
     it('queries by emailAddress when identifier contains @', async () => {
-      qb.getOne.mockResolvedValue({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
+      qb.getOne.mockResolvedValue({
+        id: 'u1',
+        role: UserRole.USER,
+        passwordHash: 'h',
+      });
       const out = await service.findForAuth('user@test.local');
-      expect(qb.where).toHaveBeenCalledWith('user.emailAddress = :identifier', { identifier: 'user@test.local' });
+      expect(qb.where).toHaveBeenCalledWith('user.emailAddress = :identifier', {
+        identifier: 'user@test.local',
+      });
       expect(out).toEqual({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
     });
 
     it('queries by username when identifier lacks @', async () => {
-      qb.getOne.mockResolvedValue({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
+      qb.getOne.mockResolvedValue({
+        id: 'u1',
+        role: UserRole.USER,
+        passwordHash: 'h',
+      });
       await service.findForAuth('rishab');
-      expect(qb.where).toHaveBeenCalledWith('user.username = :identifier', { identifier: 'rishab' });
+      expect(qb.where).toHaveBeenCalledWith('user.username = :identifier', {
+        identifier: 'rishab',
+      });
     });
 
     it('returns null when no row matches', async () => {
@@ -82,7 +97,10 @@ describe('UsersService', () => {
   describe('findActiveById', () => {
     it('returns id and role when row exists', async () => {
       repoMock.findOne.mockResolvedValue({ id: 'u1', role: UserRole.ADMIN });
-      expect(await service.findActiveById('u1')).toEqual({ id: 'u1', role: UserRole.ADMIN });
+      expect(await service.findActiveById('u1')).toEqual({
+        id: 'u1',
+        role: UserRole.ADMIN,
+      });
     });
 
     it('returns null when row missing or soft-deleted', async () => {
@@ -94,16 +112,22 @@ describe('UsersService', () => {
   describe('verifyPassword', () => {
     it('returns true for a matching password', async () => {
       const hash = await argon2.hash('correct horse battery staple');
-      expect(await service.verifyPassword(hash, 'correct horse battery staple')).toBe(true);
+      expect(
+        await service.verifyPassword(hash, 'correct horse battery staple'),
+      ).toBe(true);
     });
 
     it('returns false for a wrong password', async () => {
       const hash = await argon2.hash('correct horse battery staple');
-      expect(await service.verifyPassword(hash, 'nope but long enough')).toBe(false);
+      expect(await service.verifyPassword(hash, 'nope but long enough')).toBe(
+        false,
+      );
     });
 
     it('returns false (not throws) on a malformed hash string', async () => {
-      expect(await service.verifyPassword('not-a-real-argon2-hash', 'anything')).toBe(false);
+      expect(
+        await service.verifyPassword('not-a-real-argon2-hash', 'anything'),
+      ).toBe(false);
     });
   });
 
@@ -127,15 +151,16 @@ describe('UsersService', () => {
         lastName: 'J',
         password: 'correct horse battery staple',
       });
-      expect(logger.info).toHaveBeenCalledWith('auth.register.succeeded', { userId: 'new-id' });
+      expect(logger.info).toHaveBeenCalledWith('auth.register.succeeded', {
+        userId: 'new-id',
+      });
     });
 
     it('register duplicate emits auth.register.conflict with conflictField and no value', async () => {
       const dup = new QueryFailedError('q', [], new Error('dup'));
       (dup as any).driverError = {
         code: 'ER_DUP_ENTRY',
-        sqlMessage:
-          "Duplicate entry 'rishab' for key 'UQ_users_username'",
+        sqlMessage: "Duplicate entry 'rishab' for key 'UQ_users_username'",
       };
       repoMock.create = jest.fn((v: any) => v);
       repoMock.save = jest.fn(async () => {
@@ -200,7 +225,9 @@ describe('UsersService', () => {
       const payload = infoCall![1] as { userId: string; fields: string[] };
       expect(payload.userId).toBe('u1');
       // Names only — must list firstName and phoneNumber, not their values.
-      expect(payload.fields).toEqual(expect.arrayContaining(['firstName', 'phoneNumber']));
+      expect(payload.fields).toEqual(
+        expect.arrayContaining(['firstName', 'phoneNumber']),
+      );
       expect(payload.fields).not.toEqual(expect.arrayContaining(['lastName']));
       // Values must never appear anywhere in the log call.
       expect(JSON.stringify(payload)).not.toContain('Changed');
@@ -208,7 +235,9 @@ describe('UsersService', () => {
     });
 
     it('updateProfile with no fields emits user.profile.update_failed reason no_fields', async () => {
-      await expect(service.updateProfile('u1', {})).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.updateProfile('u1', {})).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
       expect(logger.warn).toHaveBeenCalledWith('user.profile.update_failed', {
         userId: 'u1',
         reason: 'no_fields',
@@ -271,7 +300,7 @@ describe('UsersService', () => {
       repoMock.save = jest.fn(async () => {
         throw dup;
       });
-      const err = await service.register(input).catch((e) => e);
+      const err = await service.register(input).catch((err) => err);
       expect(err).toBeInstanceOf(ConflictException);
       const body = (err as ConflictException).getResponse() as {
         message: string;
@@ -293,7 +322,11 @@ describe('UsersService', () => {
 
   describe('getPasswordContext', () => {
     it('returns id, role and passwordHash via QueryBuilder (addSelect on passwordHash)', async () => {
-      qb.getOne.mockResolvedValue({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
+      qb.getOne.mockResolvedValue({
+        id: 'u1',
+        role: UserRole.USER,
+        passwordHash: 'h',
+      });
       const out = await service.getPasswordContext('u1');
       expect(qb.where).toHaveBeenCalledWith('user.id = :id', { id: 'u1' });
       expect(out).toEqual({ id: 'u1', role: UserRole.USER, passwordHash: 'h' });
@@ -318,7 +351,11 @@ describe('UsersService', () => {
 
     it('returns false when the hash was mutated under us (lost race)', async () => {
       repoMock.update = jest.fn(async () => ({ affected: 0 }));
-      const ok = await service.updatePasswordHash('u1', 'staleOldHash', 'newhash');
+      const ok = await service.updatePasswordHash(
+        'u1',
+        'staleOldHash',
+        'newhash',
+      );
       expect(ok).toBe(false);
     });
 
@@ -348,7 +385,9 @@ describe('UsersService', () => {
     it('produces an argon2id hash that round-trips through argon2.verify', async () => {
       const hash = await service.hashPassword('correct horse battery staple');
       expect(hash).toMatch(/^\$argon2/);
-      expect(await argon2.verify(hash, 'correct horse battery staple')).toBe(true);
+      expect(await argon2.verify(hash, 'correct horse battery staple')).toBe(
+        true,
+      );
     });
   });
 
@@ -398,7 +437,7 @@ describe('UsersService', () => {
       });
       const err = await service
         .updateProfile('u1', { phoneNumber: '9876543210' })
-        .catch((e) => e);
+        .catch((err) => err);
       expect(err).toBeInstanceOf(ConflictException);
       const body = (err as ConflictException).getResponse() as {
         conflictField: string;
@@ -445,7 +484,9 @@ describe('UsersService', () => {
       repoMock.findOne.mockResolvedValue(null);
       await service.isAvailable({ emailAddress: 'rishab@example.com' });
       expect(repoMock.findOne).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { emailAddress: 'rishab@example.com' } }),
+        expect.objectContaining({
+          where: { emailAddress: 'rishab@example.com' },
+        }),
       );
     });
   });

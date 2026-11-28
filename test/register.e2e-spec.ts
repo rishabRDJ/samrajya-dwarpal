@@ -37,9 +37,9 @@ describe('Register + Availability (e2e)', () => {
     await usersRepo
       .createQueryBuilder()
       .delete()
-      .where('username LIKE :u OR emailAddress LIKE :e', {
-        u: '%_e2e%',
-        e: '%.e2e@test.local',
+      .where('username LIKE :user OR emailAddress LIKE :email', {
+        user: '%_e2e%',
+        email: '%.e2e@test.local',
       })
       .execute();
   }
@@ -91,7 +91,12 @@ describe('Register + Availability (e2e)', () => {
     it('lowercases username and email on store (case-insensitive canonical form)', async () => {
       await request(app.getHttpServer())
         .post('/v1/auth/register')
-        .send(body({ username: 'Rishab_E2E', emailAddress: 'RISHAB.E2E@Test.Local' }))
+        .send(
+          body({
+            username: 'Rishab_E2E',
+            emailAddress: 'RISHAB.E2E@Test.Local',
+          }),
+        )
         .expect(201);
 
       const row = await usersRepo.findOne({ where: { username: USERNAME } });
@@ -100,17 +105,28 @@ describe('Register + Availability (e2e)', () => {
     });
 
     it('409s on duplicate username with conflictField username', async () => {
-      await request(app.getHttpServer()).post('/v1/auth/register').send(body()).expect(201);
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body())
+        .expect(201);
       const res = await request(app.getHttpServer())
         .post('/v1/auth/register')
-        .send(body({ username: USERNAME.toUpperCase(), emailAddress: 'other.e2e@test.local' }))
+        .send(
+          body({
+            username: USERNAME.toUpperCase(),
+            emailAddress: 'other.e2e@test.local',
+          }),
+        )
         .expect(409);
       expect(res.body.conflictField).toBe('username');
       expect(res.body.message).toBe('username already in use');
     });
 
     it('409s on duplicate email with conflictField emailAddress', async () => {
-      await request(app.getHttpServer()).post('/v1/auth/register').send(body()).expect(201);
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body())
+        .expect(201);
       const res = await request(app.getHttpServer())
         .post('/v1/auth/register')
         .send(body({ username: 'otheruser_e2e' }))
@@ -205,7 +221,10 @@ describe('Register + Availability (e2e)', () => {
     });
 
     it('returns false for a taken username', async () => {
-      await request(app.getHttpServer()).post('/v1/auth/register').send(body()).expect(201);
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body())
+        .expect(201);
       const res = await request(app.getHttpServer())
         .get('/v1/auth/availability')
         .query({ username: USERNAME })
@@ -214,7 +233,10 @@ describe('Register + Availability (e2e)', () => {
     });
 
     it('is case-insensitive: a taken username is unavailable in any case', async () => {
-      await request(app.getHttpServer()).post('/v1/auth/register').send(body()).expect(201);
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body())
+        .expect(201);
       const res = await request(app.getHttpServer())
         .get('/v1/auth/availability')
         .query({ username: USERNAME.toUpperCase() })
@@ -223,7 +245,10 @@ describe('Register + Availability (e2e)', () => {
     });
 
     it('returns false for a taken email', async () => {
-      await request(app.getHttpServer()).post('/v1/auth/register').send(body()).expect(201);
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(body())
+        .expect(201);
       const res = await request(app.getHttpServer())
         .get('/v1/auth/availability')
         .query({ emailAddress: EMAIL })
@@ -232,7 +257,9 @@ describe('Register + Availability (e2e)', () => {
     });
 
     it('400s when neither field is provided', async () => {
-      await request(app.getHttpServer()).get('/v1/auth/availability').expect(400);
+      await request(app.getHttpServer())
+        .get('/v1/auth/availability')
+        .expect(400);
     });
 
     it('400s when the username is malformed', async () => {

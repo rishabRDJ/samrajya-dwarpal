@@ -4,14 +4,24 @@ import { IsIndianMobile, PHONE_REGEX } from '../../common/validation/phone.js';
 import { Trim } from '../../common/validation/transforms.js';
 
 export class UpdateMeDto {
-  @ApiProperty({ required: false, minLength: 1, maxLength: 100, example: 'Rishab' })
+  @ApiProperty({
+    required: false,
+    minLength: 1,
+    maxLength: 100,
+    example: 'Rishab',
+  })
   @IsOptional()
   @Trim()
   @IsString()
   @Length(1, 100)
   firstName?: string;
 
-  @ApiProperty({ required: false, minLength: 1, maxLength: 100, example: 'Jaiswal' })
+  @ApiProperty({
+    required: false,
+    minLength: 1,
+    maxLength: 100,
+    example: 'Jaiswal',
+  })
   @IsOptional()
   @Trim()
   @IsString()
@@ -33,7 +43,10 @@ export class UpdateMeDto {
     description:
       '10-digit Indian mobile number; must be unique. Pass null to clear the stored value.',
   })
-  @ValidateIf((o: UpdateMeDto) => o.phoneNumber !== undefined && o.phoneNumber !== null)
+  @ValidateIf(
+    (obj: UpdateMeDto) =>
+      obj.phoneNumber !== undefined && obj.phoneNumber !== null,
+  )
   @IsString()
   @IsIndianMobile()
   phoneNumber?: string | null;

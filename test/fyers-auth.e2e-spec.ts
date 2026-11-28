@@ -42,14 +42,14 @@ describe('Fyers OAuth (e2e)', () => {
     const usernames = [ADMIN_USERNAME, USER_USERNAME];
     const prior = await usersRepo.find({
       where: [
-        ...emails.map((e) => ({ emailAddress: e })),
-        ...usernames.map((u) => ({ username: u })),
+        ...emails.map((email) => ({ emailAddress: email })),
+        ...usernames.map((user) => ({ username: user })),
       ],
       withDeleted: true,
     });
-    for (const u of prior) {
-      await statesRepo.delete({ userId: u.id });
-      await usersRepo.delete({ id: u.id });
+    for (const user of prior) {
+      await statesRepo.delete({ userId: user.id });
+      await usersRepo.delete({ id: user.id });
     }
   }
 
@@ -100,13 +100,12 @@ describe('Fyers OAuth (e2e)', () => {
     argon2 = await import('argon2');
     const supertestMod = await import('supertest');
     request = (supertestMod as any).default ?? supertestMod;
-    ({ User: UserEntity, UserRole } = await import('../src/users/user.entity.js'));
-    ({ FyersOauthState: FyersOauthStateEntity } = await import(
-      '../src/fyers/fyers-oauth-state.entity.js'
-    ));
-    ({ FyersCredential: FyersCredentialEntity } = await import(
-      '../src/fyers/fyers-credential.entity.js'
-    ));
+    ({ User: UserEntity, UserRole } =
+      await import('../src/users/user.entity.js'));
+    ({ FyersOauthState: FyersOauthStateEntity } =
+      await import('../src/fyers/fyers-oauth-state.entity.js'));
+    ({ FyersCredential: FyersCredentialEntity } =
+      await import('../src/fyers/fyers-credential.entity.js'));
     ({ TestAppModule } = await import('./test-app.module.js'));
     ({ setupApp } = await import('../src/app.setup.js'));
     ({ FyersClient } = await import('../src/fyers/fyers.client.js'));
@@ -164,7 +163,9 @@ describe('Fyers OAuth (e2e)', () => {
       const url = new URL(res.body.url);
       const rawState = url.searchParams.get('state')!;
 
-      const stored = await statesRepo.findOneBy({ stateHash: hashState(rawState) });
+      const stored = await statesRepo.findOneBy({
+        stateHash: hashState(rawState),
+      });
       expect(stored).toBeTruthy();
       expect(stored!.usedAt).toBeNull();
     });
@@ -257,9 +258,7 @@ describe('Fyers OAuth (e2e)', () => {
     it('Fyers exchange fails: redirects to reason=fyers_error', async () => {
       const admin = await seedAdmin();
       const raw = await mintState(admin);
-      fakeClient.exchangeAuthCode.mockRejectedValueOnce(
-        new Error('Fyers 500'),
-      );
+      fakeClient.exchangeAuthCode.mockRejectedValueOnce(new Error('Fyers 500'));
 
       const res = await request(app.getHttpServer())
         .get('/v1/auth/fyers/callback')

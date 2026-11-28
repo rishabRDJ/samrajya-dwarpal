@@ -1,4 +1,8 @@
-import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
+import {
+  INestApplication,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 
 type OpenApiPaths = OpenAPIObject['paths'];
@@ -29,8 +33,8 @@ function corsOriginChecker(list: CorsOriginEntry[]) {
   return (origin: string | undefined, cb: CorsOriginCallback) => {
     // No Origin header = same-origin, curl, or server-to-server. Allow.
     if (!origin) return cb(null, true);
-    const ok = list.some((e) =>
-      typeof e === 'string' ? e === origin : e.test(origin),
+    const ok = list.some((ele) =>
+      typeof ele === 'string' ? ele === origin : ele.test(origin),
     );
     if (ok) return cb(null, true);
     return cb(new Error(`CORS: origin ${origin} not allowed`), false);
@@ -118,9 +122,10 @@ function applyVersionPrefix(document: OpenAPIObject): OpenAPIObject {
 // read the full OpenAPI document at /docs-json. Preview and local keep
 // Try it out so the owner can click through from either place.
 export function setupSwagger(app: INestApplication, appEnv: string): void {
-  const swaggerOptions = appEnv === 'production'
-    ? { swaggerOptions: { supportedSubmitMethods: [] as string[] } }
-    : undefined;
+  const swaggerOptions =
+    appEnv === 'production'
+      ? { swaggerOptions: { supportedSubmitMethods: [] as string[] } }
+      : undefined;
   SwaggerModule.setup(
     'docs',
     app,
